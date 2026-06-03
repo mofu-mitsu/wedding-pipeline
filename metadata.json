@@ -1,0 +1,6 @@
+{
+  "name": "概念結婚式シミュレーター",
+  "description": "新郎・新婦、観客設定を自在にカスタマイズし、神聖かつカオスな挙式・披露宴を演出・鑑賞できる推し活ゲーム。Monday研究所特別パッチや実家要塞コンポーネントも完備！",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,125 @@
+@import "tailwindcss";
+
+@theme {
+  --font-serif: "Cinzel", Georgia, serif;
+  --font-sans: "Space Grotesk", "Noto Sans JP", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+  
+  --color-brand-cyan: #0d9488;
+  --color-brand-purple: #7c3aed;
+  --color-brand-pink: #d946ef;
+  --color-brand-gold: #b45309;
+  --color-wedding-ivory: #ffffff;
+  --color-wedding-silver: #f8fafc;
+  --color-wedding-border: #e2e8f0;
+  --color-wedding-accent: #fdf2f8;
+  --color-wedding-dark: #1e293b;
+  
+  --color-dark-deep: #f8fafc;
+  --color-dark-surface: #ffffff;
+  --color-dark-border: #e2e8f0;
+}
+
+/* Custom Animations */
+@keyframes float {
+  0% { transform: translateY(0px) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(-120px) rotate(360deg); opacity: 0; }
+}
+
+@keyframes wiggle {
+  0%, 100% { transform: rotate(-5deg); }
+  50% { transform: rotate(5deg); }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translate(0, 0) rotate(0); }
+  20%, 60% { transform: translate(-2px, 1px) rotate(-1deg); }
+  40%, 80% { transform: translate(2px, -1px) rotate(1deg); }
+}
+
+@keyframes squish {
+  0% { transform: scale(1); }
+  30% { transform: scale(1.4, 0.4); opacity: 0.9; }
+  100% { transform: scale(0.2, 1.8); opacity: 0; }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 15px rgba(217, 70, 239, 0.2); }
+  50% { box-shadow: 0 0 25px rgba(217, 70, 239, 0.5), 0 0 40px rgba(124, 58, 237, 0.2); }
+}
+
+@keyframes red-flush {
+  0% { filter: drop-shadow(0 0 2px rgba(217, 70, 239, 0.3)); }
+  50% { filter: drop-shadow(0 0 15px rgba(217, 70, 239, 0.9)); }
+  100% { filter: drop-shadow(0 0 2px rgba(217, 70, 239, 0.3)); }
+}
+
+@keyframes blood-pressure {
+  0%, 100% { border-color: rgba(217, 70, 239, 0.3); }
+  50% { border-color: rgba(217, 70, 239, 1); box-shadow: 0 0 20px rgba(217, 70, 239, 0.3); }
+}
+
+.animate-float-particle {
+  animation: float 3s ease-out forwards;
+}
+
+.animate-wiggle-custom {
+  animation: wiggle 0.5s ease-in-out infinite;
+}
+
+.animate-shake-custom {
+  animation: shake 0.15s ease-in-out infinite;
+}
+
+.animate-squish-custom {
+  animation: squish 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+.animate-pulse-glow-custom {
+  animation: pulse-glow 2s infinite;
+}
+
+.animate-red-flush-custom {
+  animation: red-flush 1s ease-in-out infinite;
+}
+
+.animate-blood-pressure-custom {
+  animation: blood-pressure 1.5s infinite;
+}
+
+/* Custom scrollbars for a clean wedding design */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #d946ef;
+}
+
+/* Elegant text shadows for headings */
+.neon-text-cyan {
+  text-shadow: 0 0 3px rgba(13, 148, 136, 0.2);
+}
+
+.neon-text-pink {
+  text-shadow: 0 0 4px rgba(217, 70, 239, 0.3);
+}
+
+.neon-text-gold {
+  text-shadow: 0 0 4px rgba(180, 83, 9, 0.2);
+}
+
+.neon-border-cyan {
+  box-shadow: 0 0 10px rgba(13, 148, 136, 0.15);
+}
+
