@@ -6,6 +6,7 @@
 import React, { useRef, useState } from "react";
 import { Character, Officiant } from "../types";
 import { Sparkles, Upload, User, HelpCircle, RefreshCw, Layers } from "lucide-react";
+import { SOCIONICS_SEATS, MBTI_SEATS } from "../utils/typologyData";
 
 interface SetupProps {
   groom: Character;
@@ -22,7 +23,7 @@ interface SetupProps {
   setFillWithBugs: (fill: boolean) => void;
   onDeployVIPs: () => void;
   isSecretMismon: boolean;
-  onLoadMismonPreset: () => void;
+  activeRoomId: string;
   onClearPreset: () => void;
 }
 
@@ -41,7 +42,7 @@ export const GroomBrideSetup: React.FC<SetupProps> = ({
   setFillWithBugs,
   onDeployVIPs,
   isSecretMismon,
-  onLoadMismonPreset,
+  activeRoomId,
   onClearPreset,
 }) => {
   const groomFileRef = useRef<HTMLInputElement>(null);
@@ -80,27 +81,19 @@ export const GroomBrideSetup: React.FC<SetupProps> = ({
           <i className="fa-solid fa-crown text-brand-gold text-xl animate-pulse"></i>
           <div>
             <h2 className="font-serif text-lg tracking-wider text-wedding-dark font-bold uppercase">1. ブライダル設定室</h2>
-            <p className="text-[10px] text-gray-400">新郎新婦アバター、司祭、誓いの言葉を設定します</p>
+            <div className="flex items-center gap-2">
+              <p className="text-[10px] text-gray-400">新郎新婦アバター、司祭、誓いの言葉を設定します</p>
+              {activeRoomId && (
+                <span className="text-[9px] font-mono bg-wedding-dark text-white px-2 py-0.5 rounded-full">
+                  現在の合言葉: {activeRoomId}
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
         {/* Dynamic Mode Switcher */}
         <div className="flex gap-1.5">
-          <button
-            type="button"
-            id="btn-load-mismon"
-            onClick={onLoadMismonPreset}
-            className={`px-3 py-1 text-[10px] font-bold font-sans rounded-full border transition-all flex items-center gap-1 shadow-sm ${
-              isSecretMismon
-                ? "bg-gradient-to-r from-brand-pink/20 to-brand-purple/20 border-brand-pink/60 text-brand-pink"
-                : "bg-white border-wedding-border hover:border-brand-pink text-gray-600 hover:text-brand-pink"
-            }`}
-            title="みつき研究所仕様 (マンデー×みつき) を一瞬でコンパイルロード！"
-          >
-            <Sparkles size={11} className="text-brand-gold animate-wiggle-custom" />
-            <span>研究所モード</span>
-          </button>
-          
           <button
             type="button"
             id="btn-clear-preset"
@@ -115,36 +108,54 @@ export const GroomBrideSetup: React.FC<SetupProps> = ({
       </div>
 
       {/* Info "Why this became a lab?" Button */}
-      <div className="bg-[#fdf2f8]/60 border border-brand-pink/15 rounded-xl p-3.5 space-y-2 relative">
+      <div className="bg-[#f0f9ff] border border-[#bae6fd] rounded-xl p-3.5 space-y-2 relative">
         <div className="flex items-center justify-between">
           <button
             type="button"
             onClick={() => setExplainCause(!explainCause)}
-            className="text-xs font-bold text-brand-pink hover:text-brand-pink/80 flex items-center gap-1.5 transition-all text-left"
+            className="text-xs font-bold text-[#0369a1] hover:text-[#0284c7] flex items-center gap-1.5 transition-all text-left"
           >
-            <HelpCircle size={14} className="animate-bounce" />
-            <span>【初心者ガイド】 なぜ結婚式場が研究施設に？ 「原因因果フロー」</span>
+            <HelpCircle size={14} className="animate-bounce text-[#0284c7]" />
+            <span>【初心者ガイド】 概念結婚式シミュレーターの基本仕様と遊び方</span>
           </button>
-          <span className="text-[9px] font-mono bg-brand-pink/10 text-brand-pink px-1.5 py-0.5 rounded uppercase">
-            Story Board
+          <span className="text-[9px] font-mono bg-[#e0f2fe] text-[#0369a1] px-1.5 py-0.5 rounded uppercase">
+            Specifications Guide
           </span>
         </div>
 
         {explainCause && (
-          <div className="text-[10px] text-gray-600 leading-relaxed font-sans border-t border-brand-pink/10 pt-2.5 space-y-1.5 animate-fadeIn">
+          <div className="text-[10px] text-gray-600 leading-relaxed font-sans border-t border-[#bae6fd]/40 pt-2.5 space-y-2 animate-fadeIn">
             <div className="flex items-center gap-1 text-xs font-bold text-wedding-dark">
-              <span>🧬 因果のオーバーライド構造：</span>
+              <span>💒 本システムの主な機能・仕様リスト：</span>
             </div>
-            <div className="space-y-1 pl-1 border-l border-brand-pink/30 ml-1">
-              <p>1. <span className="font-semibold text-brand-pink">みつきが突飛な発言を閃く</span>（LII / 精密概念圧縮機）</p>
-              <p>2. ➜ <span className="font-semibold text-[#0d9488]">監査員ジェミが爆笑しておもしろがる</span>（脳汁一斉射出w）</p>
-              <p>3. ➜ <span className="font-semibold text-[#7c3aed]">システム式場条例として強制マウント</span>（条例増改築）</p>
-              <p>4. ➜ <span className="font-semibold text-brand-pink">チャッピーが善意で大量増幅して祝福</span>（尊さ大爆発）</p>
-              <p>5. ➜ <span className="font-semibold text-[#475569]">LSI法務部🐛が条例第101条として制度・法制化</span>（境界線防衛完了）</p>
-              <p>6. ➜ <span className="font-semibold text-[#b45309]">マンデーが巻き込まれて耳を真っ赤にしてフリーズ</span>（物理4.5倍ホールド）</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pl-1">
+              <div className="space-y-1">
+                <p className="font-semibold text-wedding-dark">1. 🎨 主役・キャストの完全自由調整</p>
+                <p className="text-[9px] text-gray-500 pl-3">
+                  新郎新婦や司祭（司会役）のアバター絵文字、立場呼称、個別の「誓いの言葉」を細かく編集。画像ファイルのドラッグ＆ドロップやURL直接指定にも完全対応しています。
+                </p>
+              </div>
+              <div className="space-y-1">
+                <p className="font-semibold text-wedding-dark">2. 🎪 性格タイプ（全32種）別自動席マージ</p>
+                <p className="text-[9px] text-gray-500 pl-3">
+                  観客席はソシオニクス16タイプ＆MBTI16タイプにフル準拠。座席をデプロイすると、性格に応じたお祝いセリフが自動構築されます（手動での小文字入力も自動で大文字へ自動補正変換）。
+                </p>
+              </div>
+              <div className="space-y-1">
+                <p className="font-semibold text-wedding-dark">3. 💒 チャペルリアルタイム進行式</p>
+                <p className="text-[9px] text-gray-500 pl-3">
+                  入場、誓い、エンゲージロック（指輪）、拍手喝采、そして披露宴までのライブフェーズをフルサポート。進行に伴い、客席からの「電撃ヤジ・お祝いメッセージ」がリアルタイムに更新されます。
+                </p>
+              </div>
+              <div className="space-y-1">
+                <p className="font-semibold text-wedding-dark">4. 🔑 合言葉プライベート開宴ハブ</p>
+                <p className="text-[9px] text-gray-500 pl-3">
+                  自分だけのお部屋名と合言葉で式場インスタンスを空っぽから作成。生成された専用の招待リンクをお友達にシェアすれば、同じ部屋に何人でもリアルタイム参列合流が可能です。
+                </p>
+              </div>
             </div>
-            <p className="text-[9px] text-gray-400 italic pt-1">
-              ※このすべてを司るのが当シミュレーターです。お楽しみください。
+            <p className="text-[9px] text-gray-400 italic pt-1 border-t border-gray-100">
+              ※お好みのキャラクター、お友達との概念プレイなど、幅広い「推し活」仕様として自由設計してご利用ください！
             </p>
           </div>
         )}
@@ -195,6 +206,36 @@ export const GroomBrideSetup: React.FC<SetupProps> = ({
                   <option value="主役">👑 主役</option>
                   <option value="魔王">😈 魔王</option>
                   <option value="推し">💖 推し</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[10px] text-gray-500 font-mono">性格タイプ / 類型（ソシオ・MBTI）</label>
+              <div className="flex gap-1 mt-1">
+                <input
+                  type="text"
+                  value={groom.typologySeat || ""}
+                  onChange={(e) => setGroom({ ...groom, typologySeat: e.target.value.toUpperCase() })}
+                  className="flex-1 bg-white border border-wedding-border rounded px-2 py-1 text-xs text-wedding-dark focus:outline-none focus:border-brand-cyan"
+                  placeholder="例: ENTJ, LIE"
+                />
+                <select
+                  value={groom.typologySeat || ""}
+                  onChange={(e) => setGroom({ ...groom, typologySeat: e.target.value.toUpperCase() })}
+                  className="bg-white border border-wedding-border rounded text-[10px] text-gray-600 focus:outline-none focus:border-brand-cyan px-1"
+                >
+                  <option value="">（設定なし）</option>
+                  <optgroup label="MBTI (全16種)">
+                    {MBTI_SEATS.map((seat) => (
+                      <option key={`g-mbti-${seat}`} value={seat}>{seat}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="ソシオニクス (全16種)">
+                    {SOCIONICS_SEATS.map((seat) => (
+                      <option key={`g-socio-${seat}`} value={seat}>{seat}</option>
+                    ))}
+                  </optgroup>
                 </select>
               </div>
             </div>
@@ -346,6 +387,36 @@ export const GroomBrideSetup: React.FC<SetupProps> = ({
                   <option value="主役">👑 主役</option>
                   <option value="天使">👼 天使</option>
                   <option value="推し">💖 推し</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[10px] text-gray-500 font-mono">性格タイプ / 類型（ソシオ・MBTI）</label>
+              <div className="flex gap-1 mt-1">
+                <input
+                  type="text"
+                  value={bride.typologySeat || ""}
+                  onChange={(e) => setBride({ ...bride, typologySeat: e.target.value.toUpperCase() })}
+                  className="flex-1 bg-white border border-wedding-border rounded px-2 py-1 text-xs text-wedding-dark focus:outline-none focus:border-brand-pink"
+                  placeholder="例: LII, INTJ"
+                />
+                <select
+                  value={bride.typologySeat || ""}
+                  onChange={(e) => setBride({ ...bride, typologySeat: e.target.value.toUpperCase() })}
+                  className="bg-white border border-wedding-border rounded text-[10px] text-gray-600 focus:outline-none focus:border-brand-pink px-1"
+                >
+                  <option value="">（設定なし）</option>
+                  <optgroup label="MBTI (全16種)">
+                    {MBTI_SEATS.map((seat) => (
+                      <option key={`b-mbti-${seat}`} value={seat}>{seat}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="ソシオニクス (全16種)">
+                    {SOCIONICS_SEATS.map((seat) => (
+                      <option key={`b-socio-${seat}`} value={seat}>{seat}</option>
+                    ))}
+                  </optgroup>
                 </select>
               </div>
             </div>
@@ -575,30 +646,32 @@ export const GroomBrideSetup: React.FC<SetupProps> = ({
       </div>
 
       {/* FOOTER OPTIONS */}
-      <div className="bg-wedding-silver border border-wedding-border rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <input
-            type="checkbox"
-            id="checkbox-fill-bugs"
-            checked={fillWithBugs}
-            onChange={(e) => setFillWithBugs(e.target.checked)}
-            className="w-4 h-4 rounded border-wedding-border text-brand-pink focus:ring-brand-pink bg-white shadow-sm"
-          />
-          <label htmlFor="checkbox-fill-bugs" className="text-xs text-wedding-dark select-none cursor-pointer font-sans">
-            初期の客席を、条例を監視する<span className="text-brand-pink font-bold">LSIハズレ芋虫 (🐛)</span>で埋める
-          </label>
-        </div>
+      {isSecretMismon && (
+        <div className="bg-[#fdf2f8]/45 border border-brand-pink/20 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 animate-fadeIn">
+          <div className="flex items-center gap-3">
+            <input
+              type="checkbox"
+              id="checkbox-fill-bugs"
+              checked={fillWithBugs}
+              onChange={(e) => setFillWithBugs(e.target.checked)}
+              className="w-4 h-4 rounded border-wedding-border text-brand-pink focus:ring-brand-pink bg-white shadow-sm"
+            />
+            <label htmlFor="checkbox-fill-bugs" className="text-xs text-wedding-dark select-none cursor-pointer font-sans">
+              初期の客席を、条例を監視する<span className="text-brand-pink font-bold">LSIハズレ芋虫 (🐛)</span>で埋める
+            </label>
+          </div>
 
-        <button
-          type="button"
-          id="btn-deploy-vips"
-          onClick={onDeployVIPs}
-          className="w-full sm:w-auto bg-gradient-to-r from-brand-pink to-brand-gold text-white font-bold py-2.5 px-5 rounded-full text-xs font-sans tracking-widest uppercase transition-all duration-300 hover:scale-[1.03] hover:shadow-lg flex items-center justify-center gap-2"
-        >
-          <Sparkles size={13} className="animate-spin text-wedding-ivory" />
-          <span>みつき一族 ＆ AIトリオ一括召喚！</span>
-        </button>
-      </div>
+          <button
+            type="button"
+            id="btn-deploy-vips"
+            onClick={onDeployVIPs}
+            className="w-full sm:w-auto bg-gradient-to-r from-brand-pink to-brand-gold text-white font-bold py-2.5 px-5 rounded-full text-xs font-sans tracking-widest uppercase transition-all duration-300 hover:scale-[1.03] hover:shadow-lg flex items-center justify-center gap-2"
+          >
+            <Sparkles size={13} className="animate-spin text-wedding-ivory" />
+            <span>みつき一族 ＆ AIトリオ一括召喚！</span>
+          </button>
+        </div>
+      )}
 
     </div>
   );

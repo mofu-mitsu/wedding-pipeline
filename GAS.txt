@@ -1,0 +1,66 @@
+const SHEET_NAME = 'WeddingRooms';
+const NOTIFY_EMAIL = 'momoka.mimika1122@gmail.com';
+
+function initSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(SHEET_NAME);
+  if (!sheet) {
+    sheet = ss.insertSheet(SHEET_NAME);
+    sheet.appendRow(['roomId', 'roomData', 'updatedAt']);
+  }
+  return sheet;
+}
+
+function doGet(e) {
+  if (!e || !e.parameter || !e.parameter.action) {
+    return ContentService.createTextOutput(JSON.stringify({message: 'System is running. Please specify an action parameter.'})).setMimeType(ContentService.MimeType.JSON);
+  }
+  const action = e.parameter.action;
+  const sheet = initSheet();
+  const data = sheet.getDataRange().getValues();
+  if (action === 'getRoom') {
+    const roomId = e.parameter.id;
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0] === roomId) {
+        return ContentService.createTextOutput(data[i][1]).setMimeType(ContentService.MimeType.JSON);
+      }
+    }
+  }
+  return ContentService.createTextOutput(JSON.stringify({error: 'not found'})).setMimeType(ContentService.MimeType.JSON);
+}
+
+function doPost(e) {
+  try {
+    const postData = JSON.parse(e.postData.contents);
+    if (postData.action === 'saveRoom') {
+      const room = postData.room;
+      const roomId = room.id;
+      const sheet = initSheet();
+      const data = sheet.getDataRange().getValues();
+      let rowIndex = -1;
+      
+      for (let i = 1; i < data.length; i++) {
+        if (data[i][0] === roomId) {
+          rowIndex = i + 1;
+          break;
+        }
+      }
+      
+      if (rowIndex === -1) {
+        sheet.appendRow([roomId, JSON.stringify(room), new Date().toISOString()]);
+        // 新しい部屋が作成・保存されたらメール通知
+        MailApp.sendEmail({
+          to: NOTIFY_EMAIL,
+          subject: `新しいウェディングルームが作成/保存されました: ${roomId}`,
+          body: `合言葉: ${roomId}\n名前: ${room.name}\n\nシステム共有ハブより`
+        });
+      } else {
+        sheet.getRange(rowIndex, 2).setValue(JSON.stringify(room));
+        sheet.getRange(rowIndex, 3).setValue(new Date().toISOString());
+      }
+      return ContentService.createTextOutput(JSON.stringify({success: true})).setMimeType(ContentService.MimeType.JSON);
+    }
+  } catch(err) {
+    return ContentService.createTextOutput(JSON.stringify({error: err.toString()})).setMimeType(ContentService.MimeType.JSON);
+  }
+}

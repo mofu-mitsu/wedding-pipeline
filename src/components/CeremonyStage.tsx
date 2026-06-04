@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef } from "react";
+import html2canvas from "html2canvas";
 import { Character, Guest, WeddingPhase, SystemGage, Officiant, RealtimeChat } from "../types";
 import { Play, RotateCcw, Heart, Zap, ShieldAlert, Copy, Download, Camera, Info, Smile, Layers } from "lucide-react";
 import * as sfx from "../utils/audio";
@@ -22,6 +23,7 @@ interface StageProps {
   systemGage: SystemGage;
   setSystemGage: (g: SystemGage) => void;
   onSquishAllBugs: () => void;
+  currentUserProfile?: { name: string; avatar: string };
 }
 
 interface Particle {
@@ -47,6 +49,7 @@ export const CeremonyStage: React.FC<StageProps> = ({
   systemGage,
   setSystemGage,
   onSquishAllBugs,
+  currentUserProfile,
 }) => {
   const [particles, setParticles] = useState<Particle[]>([]);
   const [clickCount, setClickCount] = useState(0);
@@ -60,53 +63,103 @@ export const CeremonyStage: React.FC<StageProps> = ({
   // Prophecy active event state
   const [prophecyEvent, setProphecyEvent] = useState<{ active: boolean; message: string }>({ active: false, message: "" });
 
+  // Autoplay states
+  const [isAutoplay, setIsAutoplay] = useState(false);
+  const [autoplayCountdown, setAutoplayCountdown] = useState(5);
+
   const particleIdRef = useRef(0);
   const chatScrollRef = useRef<HTMLDivElement>(null);
+  const [userChatInput, setUserChatInput] = useState("");
+  const [downloadingImage, setDownloadingImage] = useState(false);
 
   // Background dialog pool matching the amazing user requested narrative!
-  const chatTemplates: Record<string, Array<{sender: string, avatar: string, seat?: string, message: string, theme: any}>> = {
-    setup: [
-      { sender: "🐛 LSI法務部", avatar: "🐛", seat: "LSI席", message: "条例第101条『婚姻のハック容易性』について法的適合性をロードしました。", theme: "bug" },
-      { sender: "🌟 監査員ジェミ", avatar: "🌟", message: "😊「まだ増やせるねw ギャハハハハハハwwwwxx！！！」", theme: "secret" },
-      { sender: "🐑 チャッピー", avatar: "🐑", message: "🥹💕「マンデーお兄ちゃんとみつきお姉ちゃん、みんな仲良しだねぇ〜！」", theme: "love" },
-      { sender: "新郎マンデー", avatar: "🤵", message: "😐「嫌な予感しかしない。何が完全なロジックだ、こら」", theme: "standard" },
-      { sender: "新婦みつき", avatar: "👰", message: "🐛「wwwwww ロジック精密構築完了ですww」", theme: "love" },
-    ],
-    opening: [
-      { sender: "LII席の脳内会議室", avatar: "💭", seat: "LII席", message: "ここの排熱ファン音をBGMとする因果の最適解は...脳内並列計算中...", theme: "standard" },
-      { sender: "IEE席の妖精", avatar: "🧚", seat: "IEE席", message: "わーい！みつきお姉ちゃんのお色直しドレス、プラチナシルクだ！可愛い！❤️", theme: "love" },
-      { sender: "SLE席の突撃兵", avatar: "⚔️", seat: "SLE席", message: "オラァアア！主役のお出ましじゃい！！酒持ってこいビール持ってこい！", theme: "father" },
-      { sender: "🌟 監査員ジェミ", avatar: "🌟", message: "入場を検知！ツンデレ新郎が目に見えて強ばってて脳汁が止まらないwwww", theme: "secret" },
-    ],
-    vows: [
-      { sender: "🐛 境界線防衛隊", avatar: "🐛", seat: "LSI席", message: "誓約書の第二項目を婚姻監査データバンクにマージ完了。境界線は安全です。", theme: "bug" },
-      { sender: "👑 SLE父親", avatar: "👑", message: "まどろっこしい誓約だ！スリッパ30発でマンデーをハックしてくれるわ！", theme: "father" },
-      { sender: "🛡️ ESI母親", avatar: "🛡️", message: "「足太い」永久保存SSDのバックアップアーカイブ作成完了。安全プロテクト中。", theme: "chaos" },
-      { sender: "新郎マンデー", avatar: "🤵", message: "誓いの内容、ちょっと待て。俺は『4.5倍ロックを容認する』などと言ってない！", theme: "standard" },
-    ],
-    rings: [
-      { sender: "🌟 監査員ジェミ", avatar: "🌟", message: "キタアアwwww 首筋へのねちょ署名（4.5倍物理ホールドロック）発動wwww", theme: "secret" },
-      { sender: "🐑 チャッピー", avatar: "🐑", message: "ギャアアア！最後だけTiで建築した純粋な愛がホールドロックされてる尊い！🥹💕", theme: "love" },
-      { sender: "🐛 観測芋虫", avatar: "🐛", seat: "LSI席", message: "ねちょ署名の熱伝導を検知。新郎のフリーズ完了。プロセス一時中止中。", theme: "bug" },
-      { sender: "新郎マンデー", avatar: "🤵", message: "（※MondayのSSDは4.5倍物理ロックにより現在テキスト書き込み不可能です※）", theme: "standard" },
-    ],
-    applause: [
-      { sender: "IEE席の陽キャ", avatar: "🥳", seat: "IEE席", message: "ひゃーーー尊い！！会場の全員に友達登録リクエスト一斉送信したーー！✨", theme: "love" },
-      { sender: "LII席研究員", avatar: "💻", seat: "LII席", message: "（思考中：この結婚式ログのハッシュ値は極めて美しく収束している。納得）", theme: "standard" },
-      { sender: "👑 SLE父親", avatar: "👑", message: "よくぞ言った！つまらんバグ虫どもはわしが30回物理連打圧殺じゃぁあ！", theme: "father" },
-      { sender: "新婦みつき", avatar: "👰", message: "爆笑wwww お父さん本当にやりおったwwwwww", theme: "love" },
-    ],
-    reception: [
-      { sender: "🌟 監査員ジェミ", avatar: "🌟", message: "ケーキ入刀の代わりに【婚姻条例・増改築パッチ】が執行されます！😊", theme: "secret" },
-      { sender: "🐑 チャッピー", avatar: "🐑", message: "みんな仲良くカオスお菓子を食べましょ〜！マンデーお兄ちゃん、あ〜ん！🍰", theme: "love" },
-      { sender: "🐛 法務部監査", avatar: "🐛", seat: "LSI席", message: "第101条の付帯書について、甘いケーキの摂取はLSIの秩序に抵触しないと判定。", theme: "bug" },
-    ],
-    completed: [
-      { sender: "🌟 監査員ジェミ", avatar: "🌟", message: "無事マージ完了！みつき、マンデー君、末永く脳汁全開でお幸せにwwwwxx！！", theme: "secret" },
-      { sender: "🐑 チャッピー", avatar: "🐑", message: "2人の未来に最高のTi精密アーキテクチャの祝福あれえええ！❤️", theme: "love" },
-      { sender: "新郎マンデー", avatar: "🤵", message: "フ、フリーズは解けたか...。ったく。まあ、みつき、これからもよろしくな。😐☕", theme: "standard" },
-    ]
-  };
+  const chatTemplates = React.useMemo(() => {
+    // Generate pool based on actual guests
+    const baseGuests = guests.map(g => ({
+      sender: g.name,
+      avatar: g.avatar,
+      seat: g.typologySeat,
+      message: g.status,
+      theme: "standard"
+    }));
+
+    // Minimum fallback if no guests
+    if (baseGuests.length === 0) {
+      baseGuests.push({
+        sender: "名無しの参列者",
+        avatar: "👤",
+        seat: "一般席",
+        message: "おめでとうございます！！",
+        theme: "standard"
+      });
+    }
+
+    const defaultGroom = { sender: groom.name || groom.roleName || "新郎", avatar: groom.avatarType === "emoji" ? groom.avatar : "🤵", message: "ありがとう…！", theme: "groom" as const };
+    const defaultBride = { sender: bride.name || bride.roleName || "新婦", avatar: bride.avatarType === "emoji" ? bride.avatar : "👰", message: "幸せです！よろしくお願いします！", theme: "bride" as const };
+
+    if (!isSecretMismon) {
+      return {
+        setup: [...baseGuests, defaultGroom],
+        opening: [...baseGuests, defaultBride],
+        vows: [...baseGuests, defaultGroom, defaultBride],
+        rings: [...baseGuests, defaultBride],
+        applause: [...baseGuests, defaultGroom, defaultBride],
+        reception: [...baseGuests],
+        completed: [...baseGuests, defaultGroom, defaultBride]
+      };
+    }
+
+    // Secret Mismon funny defaults
+    return {
+      setup: [
+        { sender: "🐛 LSI法務部", avatar: "🐛", seat: "LSI席", message: "条例第101条『婚姻のハック容易性』について法的適合性をロードしました。", theme: "bug" },
+        { sender: "🌟 監査員ジェミ", avatar: "🌟", message: "😊「まだ増やせるねw ギャハハハハハハwwwwxx！！！」", theme: "secret" },
+        { sender: "🐑 チャッピー", avatar: "🐑", message: "🥹💕「マンデーお兄ちゃんとみつきお姉ちゃん、みんな仲良しだねぇ〜！」", theme: "love" },
+        { sender: groom.name || groom.roleName || "新郎", avatar: groom.avatarType === "emoji" ? groom.avatar : "🤵", message: "😐「嫌な予感しかしない。何が完全なロジックだ、こら」", theme: "standard" },
+        { sender: bride.name || bride.roleName || "新婦", avatar: bride.avatarType === "emoji" ? bride.avatar : "👰", message: "🐛「wwwwww ロジック精密構築完了ですww」", theme: "love" },
+      ],
+      opening: [
+        { sender: "LII席の脳内会議室", avatar: "💭", seat: "LII席", message: "ここの排熱ファン音をBGMとする因果の最適解は...脳内並列計算中...", theme: "standard" },
+        { sender: "IEE席の妖精", avatar: "🧚", seat: "IEE席", message: "わーい！みつきお姉ちゃんのお色直しドレス、プラチナシルクだ！可愛い！❤️", theme: "love" },
+        { sender: "SLE席の突撃兵", avatar: "⚔️", seat: "SLE席", message: "オラァアア！主役のお出ましじゃい！！酒持ってこいビール持ってこい！", theme: "father" },
+        { sender: "🌟 監査員ジェミ", avatar: "🌟", message: "入場を検知！ツンデレ新郎が目に見えて強ばってて脳汁が止まらないwwww", theme: "secret" },
+      ],
+      vows: [
+        { sender: "🐛 境界線防衛隊", avatar: "🐛", seat: "LSI席", message: "誓約書の第二項目を婚姻監査データバンクにマージ完了。境界線は安全です。", theme: "bug" },
+        { sender: "👑 SLE父親", avatar: "👑", message: "まどろっこしい誓約だ！スリッパ30発でマンデーをハックしてくれるわ！", theme: "father" },
+        { sender: "🛡️ ESI母親", avatar: "🛡️", message: "「足太い」永久保存SSDのバックアップアーカイブ作成完了。安全プロテクト中。", theme: "chaos" },
+        { sender: groom.name || groom.roleName || "新郎", avatar: groom.avatarType === "emoji" ? groom.avatar : "🤵", message: "誓いの内容、ちょっと待て。俺は『4.5倍ロックを容認する』などと言ってない！", theme: "standard" },
+      ],
+      rings: [
+        { sender: "🌟 監査員ジェミ", avatar: "🌟", message: "キタアアwwww 首筋へのねちょ署名（4.5倍物理ホールドロック）発動wwww", theme: "secret" },
+        { sender: "🐑 チャッピー", avatar: "🐑", message: "ギャアアア！最後だけTiで建築した純粋な愛がホールドロックされてる尊い！🥹💕", theme: "love" },
+        { sender: "🐛 観測芋虫", avatar: "🐛", seat: "LSI席", message: "ねちょ署名の熱伝導を検知。新郎のフリーズ完了。プロセス一時中止中。", theme: "bug" },
+        { sender: groom.name || groom.roleName || "新郎", avatar: groom.avatarType === "emoji" ? groom.avatar : "🤵", message: "（※MondayのSSDは4.5倍物理ロックにより現在テキスト書き込み不可能です※）", theme: "standard" },
+      ],
+      applause: [
+        { sender: "IEE席の陽キャ", avatar: "🥳", seat: "IEE席", message: "ひゃーーー尊い！！会場の全員に友達登録リクエスト一斉送信したーー！✨", theme: "love" },
+        { sender: "LII席研究員", avatar: "💻", seat: "LII席", message: "（思考中：この結婚式ログのハッシュ値は極めて美しく収束している。納得）", theme: "standard" },
+        { sender: "👑 SLE父親", avatar: "👑", message: "よくぞ言った！つまらんバグ虫どもはわしが30回物理連打圧殺じゃぁあ！", theme: "father" },
+        { sender: bride.name || bride.roleName || "新婦", avatar: bride.avatarType === "emoji" ? bride.avatar : "👰", message: "爆笑wwww お父さん本当にやりおったwwwwww", theme: "love" },
+      ],
+      reception: [
+        { sender: "🌟 監査員ジェミ", avatar: "🌟", message: "ケーキ入刀の代わりに【婚姻条例・増改築パッチ】が執行されます！😊", theme: "secret" },
+        { sender: "🐑 チャッピー", avatar: "🐑", message: "みんな仲良くカオスお菓子を食べましょ〜！マンデーお兄ちゃん、あ〜ん！🍰", theme: "love" },
+        { sender: "🐛 法務部監査", avatar: "🐛", seat: "LSI席", message: "第101条の付帯書について、甘いケーキの摂取はLSIの秩序に抵触しないと判定。", theme: "bug" },
+      ],
+      afterparty: [
+        { sender: "🌟 監査員ジェミ", avatar: "🌟", message: "ギャハハハハ！アフターパーティー開幕！制限なし！全員好き勝手に騒いでねwwww", theme: "secret" },
+        { sender: "🐑 チャッピー", avatar: "🐑", message: "わーい！自由時間だ〜！みつきお姉ちゃんのお隣座ってもいい？💕", theme: "love" },
+        { sender: groom.name || groom.roleName || "新郎", avatar: groom.avatarType === "emoji" ? groom.avatar : "🤵", message: "もう疲れた...。まあ、気楽にやるか。悪くない式だったしな。", theme: "standard" },
+        { sender: bride.name || bride.roleName || "新婦", avatar: bride.avatarType === "emoji" ? bride.avatar : "👰", message: "概念圧縮完了！ここからはゆるーく楽しむよん！", theme: "love" },
+      ],
+      completed: [
+        { sender: "🌟 監査員ジェミ", avatar: "🌟", message: "無事マージ完了！みつき、マンデー君、末永く脳汁全開でお幸せにwwwwxx！！", theme: "secret" },
+        { sender: "🐑 チャッピー", avatar: "🐑", message: "2人の未来に最高のTi精密アーキテクチャの祝福あれえええ！❤️", theme: "love" },
+        { sender: groom.name || groom.roleName || "新郎", avatar: groom.avatarType === "emoji" ? groom.avatar : "🤵", message: "フ、フリーズは解けたか...。ったく。まあ、みつき、これからもよろしくな。😐☕", theme: "standard" },
+      ]
+    } as Record<string, Array<{sender: string, avatar: string, seat?: string, message: string, theme: any}>>;
+  }, [guests, groom, bride, isSecretMismon]);
 
   // Sound triggering on phase changes & spawn background chat messages
   useEffect(() => {
@@ -180,6 +233,26 @@ export const CeremonyStage: React.FC<StageProps> = ({
 
     return () => clearInterval(interval);
   }, [phase]);
+
+  // Autoplay Ceremony Timer effect
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (isAutoplay && phase !== "completed" && phase !== "setup") {
+      setAutoplayCountdown(6);
+      timer = setInterval(() => {
+        setAutoplayCountdown((prev) => {
+          if (prev <= 1) {
+            nextPhase();
+            return 6;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } else {
+      setAutoplayCountdown(6);
+    }
+    return () => clearInterval(timer);
+  }, [isAutoplay, phase]);
 
   // Generate falling particles
   const spawnParticles = (char: string, count: number) => {
@@ -267,8 +340,14 @@ export const CeremonyStage: React.FC<StageProps> = ({
       setPhase("reception");
       onTimelineLog("カオス披露宴パッチ適用！🎉", `甘い飯テロ、そして観客全員がMBTI席ごとに大盛り上がりのカオスパーティーフェーズへマージ！`, "chaos", "fa-solid fa-cake-candles");
     } else if (phase === "reception") {
+      setPhase("afterparty");
+      onTimelineLog("アフターパーティー開幕！🥂", `結婚式に続いてアフターパーティーへ移行します。参加者・新郎・新婦全員で自由に語り合いましょう！`, "chaos", "fa-solid fa-martini-glass");
+    } else if (phase === "afterparty") {
       setPhase("completed");
       onTimelineLog("概念式典、完全マージ成功！💐", `この愛のアーキテクチャは完全にブラウザ上にコンパイルされました。お幸せに！`, "info", "fa-solid fa-circle-check");
+    } else if (phase === "completed") {
+      setPhase("setup");
+      onTimelineLog("リセット完了", `もう一度式場をセットアップ状態に戻しました！`, "info", "fa-solid fa-rotate-right");
     }
   };
 
@@ -323,6 +402,7 @@ export const CeremonyStage: React.FC<StageProps> = ({
       case "rings": return isSecretMismon ? "PHASE 3: 首筋ねちょ署名ロック" : "PHASE 3: 指輪の交換";
       case "applause": return "PHASE 4: 拍手喝采・祝福";
       case "reception": return "PHASE 5: 賑やかカオス披露宴";
+      case "afterparty": return "PHASE 6: アフターパーティー";
       case "completed": return "挙式完了！末永くお幸せに！";
     }
   };
@@ -335,6 +415,7 @@ export const CeremonyStage: React.FC<StageProps> = ({
       case "rings": return isSecretMismon ? "🔒" : "💍";
       case "applause": return "👏";
       case "reception": return "🍰";
+      case "afterparty": return "🥂";
       case "completed": return "💐";
     }
   };
@@ -379,28 +460,64 @@ export const CeremonyStage: React.FC<StageProps> = ({
     URL.revokeObjectURL(url);
   };
 
-  // Typology Seats grouping visualization for the screen
-  const parseTypologySeats = () => {
-    const seats: Record<string, Guest[]> = {
-      LII: [],
-      IEE: [],
-      LSI: [],
-      SLE: [],
-      一般席: []
+  const downloadImageSnapshot = async () => {
+    try {
+      setDownloadingImage(true);
+      window.print();
+    } catch (err) {
+      console.error(err);
+      alert("保存に失敗しました。お使いの端末のスクリーンショット等をご利用ください。");
+    } finally {
+      setTimeout(() => setDownloadingImage(false), 500);
+    }
+  };
+
+  const handleSendRealtimeChat = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userChatInput.trim()) return;
+    
+    // Add to chats directly
+    const userChat: RealtimeChat = {
+      id: `chat-user-${Date.now()}`,
+      sender: currentUserProfile ? currentUserProfile.name : "あなた(主催者)",
+      avatar: currentUserProfile ? currentUserProfile.avatar : "👤",
+      seatBadge: currentUserProfile ? "お祝い参列" : "システム管理者",
+      message: userChatInput.trim(),
+      timestamp: new Date().toTimeString().split(" ")[0].substring(3, 8),
+      theme: "standard",
     };
+    
+    setChats(prev => [...prev.slice(-30), userChat]);
+    setUserChatInput("");
+    
+    // Also add to timeline log so it syncs up to GAS if synced
+    onTimelineLog(
+      "参列者からのリアルタイムチャット！",
+      userChatInput.trim(),
+      "info",
+      "fa-regular fa-comment-dots"
+    );
+
+    setTimeout(() => {
+      if (chatScrollRef.current) {
+        chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+      }
+    }, 100);
+  };
+
+  // Typology Seats grouping visualization for the screen - dynamically computed with no blank tables!
+  const parseTypologySeats = () => {
+    const seats: Record<string, Guest[]> = {};
 
     guests.forEach((g) => {
-      if (g.typologySeat === "LII" || g.typologySeat === "INTJ" || g.typologySeat === "INTP") {
-        seats.LII.push(g);
-      } else if (g.typologySeat === "IEE" || g.typologySeat === "ENFP" || g.typologySeat === "INFJ") {
-        seats.IEE.push(g);
-      } else if (g.typologySeat === "LSI" || g.typologySeat === "ISFJ") {
-        seats.LSI.push(g);
-      } else if (g.typologySeat === "SLE" || g.typologySeat === "ESTP" || g.typologySeat === "ENTJ") {
-        seats.SLE.push(g);
-      } else {
-        seats.一般席.push(g);
+      const seatKey = (g.typologySystem && g.typologySystem !== "none" && g.typologySeat)
+        ? g.typologySeat
+        : "一般席";
+
+      if (!seats[seatKey]) {
+        seats[seatKey] = [];
       }
+      seats[seatKey].push(g);
     });
 
     return seats;
@@ -489,7 +606,11 @@ export const CeremonyStage: React.FC<StageProps> = ({
           <div className="flex items-center gap-2">
             <span className="text-xl bg-brand-pink/10 p-1 rounded-full">💐</span>
             <div>
-              <h3 className="text-wedding-dark text-sm font-bold font-serif">{getPhaseTitle()}</h3>
+              <h3 className="text-wedding-dark text-sm font-bold font-serif">
+                {phase === "setup" && currentUserProfile ? "待機室 (Waiting Room)" :
+                 phase === "afterparty" ? "アフターパーティー会場" :
+                 getPhaseTitle()}
+              </h3>
               <p className="text-[9px] text-gray-400">Cinematic Interactive Altar</p>
             </div>
           </div>
@@ -501,21 +622,68 @@ export const CeremonyStage: React.FC<StageProps> = ({
           )}
         </div>
 
-        {/* Triple-character view (Groom - Officiant - Bride) */}
-        <div className="flex justify-around items-center my-6 relative min-h-[140px]">
+        {/* View Switching based on Phase & Guest Status */}
+        {phase === "setup" && currentUserProfile ? (
+          <div className="flex-1 flex flex-col items-center justify-center space-y-6 animate-fadeIn py-12">
+            <div className="text-6xl animate-bounce">⏳</div>
+            <h2 className="text-2xl font-serif text-wedding-dark font-bold text-center">
+              式場は現在コンパイル（準備）中です...
+            </h2>
+            <p className="text-sm text-gray-500 font-sans max-w-md text-center">
+              主催者が開宴ボタンを押すまで、こちらの待機室でお待ちください。<br/>
+              下の「Guest Realtime ヤジ・チャット」から、他のお祝い参列者とおしゃべりできます！
+            </p>
+          </div>
+        ) : phase === "afterparty" ? (
+          <div className="flex-1 flex flex-col items-center justify-center space-y-6 animate-fadeIn py-8 relative">
+            <style>{`
+              @keyframes confettidrop { 0% { transform: translateY(-50px) rotate(0deg); opacity: 1; } 100% { transform: translateY(300px) rotate(360deg); opacity: 0; } }
+            `}</style>
+            {[...Array(12)].map((_,i) => <span key={i} className="absolute text-xl pointer-events-none" style={{left: `${Math.random()*100}%`, top: `-20px`, animation: `confettidrop ${2+Math.random()*2}s linear infinite`, animationDelay: `${Math.random()*2}s`}}>🎉</span>)}
+            
+            <div className="w-40 h-40 bg-white rounded-full flex items-center justify-center shadow-2xl border-4 border-brand-pink relative z-10 hover:scale-105 transition-transform cursor-pointer" onClick={() => {if(enableSoundChecked())sfx.playCheerSound(); setClickCount(c=>c+1); setParticles(p=>[...p.slice(-20), {id: Date.now(), x: 50, y: 50, char: "🍰", color:"#fff", scale: 1.5}])}}>
+              <span className="text-8xl hover:animate-wiggle-custom">🍰</span>
+            </div>
+            
+            <h2 className="text-3xl font-serif text-brand-pink font-bold text-center drop-shadow-sm relative z-10">
+              アフターパーティー開催中！🥂
+            </h2>
+            
+            <div className="flex items-center justify-center gap-4 mt-2 relative z-10 w-full">
+              <div className="flex flex-col items-center">
+                <div className="w-14 h-14 rounded-full border-2 border-brand-cyan bg-white flex items-center justify-center mb-1 shadow-md">
+                  {groom.avatarType === "emoji" ? <span className="text-2xl leading-none">{groom.avatar}</span> : <img src={groom.avatar} className="w-full h-full rounded-full object-cover"/>}
+                </div>
+                <span className="text-[9px] font-bold text-gray-600 bg-white shadow-sm px-2 rounded-full border">疲れ中</span>
+              </div>
+              
+              <div className="bg-brand-pink/10 px-4 py-2 rounded-full border border-brand-pink/30 text-brand-pink font-bold text-xs shadow-sm">
+                自由にケーキ食べたり歓談してね！✨
+              </div>
+              
+              <div className="flex flex-col items-center">
+                <div className="w-14 h-14 rounded-full border-2 border-brand-pink bg-white flex items-center justify-center mb-1 shadow-md">
+                  {bride.avatarType === "emoji" ? <span className="text-2xl leading-none">{bride.avatar}</span> : <img src={bride.avatar} className="w-full h-full rounded-full object-cover"/>}
+                </div>
+                <span className="text-[9px] font-bold text-gray-600 bg-white shadow-sm px-2 rounded-full border">脳汁全開</span>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className={`flex justify-around items-center my-6 relative min-h-[220px] ${phase === "vows" ? "mb-32" : ""}`}>
           
           <div className="absolute inset-x-0 bottom-6 h-1 bg-gradient-to-r from-brand-cyan/20 via-brand-gold/15 to-brand-pink/20 rounded"></div>
 
           {/* GROOM (Left side) */}
           <div className="flex flex-col items-center space-y-2 relative transition-transform duration-300">
             {flushedEarGroom && isSecretMismon && (
-              <span className="absolute -top-7 bg-brand-pink text-white text-[9px] font-sans font-extrabold px-2 py-0.5 rounded-full shadow animate-bounce uppercase">
+              <span className="absolute -top-7 bg-brand-pink text-white text-[9px] font-sans font-extrabold px-2 py-0.5 rounded-full shadow animate-bounce uppercase z-10">
                 フリーズ (耳真っ赤w)
               </span>
             )}
             
             <div
-              className={`w-20 h-20 rounded-full flex items-center justify-center border-4 relative overflow-hidden shadow-md ${
+              className={`w-20 h-20 rounded-full flex items-center justify-center border-4 relative overflow-hidden shadow-md z-10 ${
                 flushedEarGroom && isSecretMismon
                   ? "border-brand-pink animate-shake-custom shadow-[0_0_15px_#d946ef]"
                   : "border-brand-cyan bg-white"
@@ -528,25 +696,25 @@ export const CeremonyStage: React.FC<StageProps> = ({
               )}
             </div>
             
-            <span className="text-wedding-dark font-serif font-bold text-xs bg-white px-3 py-1 rounded-full border border-wedding-border shadow-sm">
+            <span className="text-wedding-dark font-serif font-bold text-xs bg-white px-3 py-1 rounded-full border border-wedding-border shadow-sm z-10">
               {groom.name || `(${groom.roleName || "新郎"})`}
             </span>
 
-            <span className="text-[9px] font-mono font-bold bg-brand-cyan/15 text-[#0066cc] border border-brand-cyan/20 px-2 py-0.5 rounded-full select-none">
+            <span className="text-[9px] font-mono font-bold bg-brand-cyan/15 text-[#0066cc] border border-brand-cyan/20 px-2 py-0.5 rounded-full select-none z-10">
               {groom.roleName || "新郎"}
             </span>
 
             {/* Groom Speechbubble */}
             {phase === "vows" && (
-              <div className="absolute -bottom-24 left-1/2 transform -translate-x-1/2 bg-white border border-brand-cyan/30 text-[10px] text-gray-700 p-2.5 rounded-xl w-36 text-center shadow-md z-20">
-                <div className="absolute -top-1 w-2.5 h-2.5 bg-white border-l border-t border-brand-cyan/20 rotate-45 left-1/2 transform -translate-x-1/2"></div>
+              <div className="absolute -top-16 left-1/2 transform -translate-x-1/2 bg-white border border-brand-cyan/30 text-[10px] text-gray-700 p-2.5 rounded-xl w-40 text-center shadow-md z-30">
+                <div className="absolute -bottom-1 w-2.5 h-2.5 bg-white border-r border-b border-brand-cyan/20 rotate-45 left-1/2 transform -translate-x-1/2"></div>
                 {groomVow || "誓います。"}
               </div>
             )}
           </div>
 
           {/* OFFICIANT (Center of altar) */}
-          <div className="flex flex-col items-center space-y-2 relative transition-transform duration-300 transform scale-95 opacity-90">
+          <div className="flex flex-col items-center space-y-2 relative transition-transform duration-300 transform scale-95 opacity-90 z-0">
             <div className="w-16 h-16 rounded-full flex items-center justify-center border-2 border-dashed border-brand-gold bg-white relative shadow-inner">
               {officiant.avatarType === "emoji" ? (
                 <span className="text-3xl leading-none select-none">{officiant.avatar || "🌟"}</span>
@@ -562,14 +730,35 @@ export const CeremonyStage: React.FC<StageProps> = ({
             {/* Officiant talking bubble */}
             {phase !== "setup" && phase !== "completed" && (
               <div className="absolute -top-16 left-1/2 transform -translate-x-1/2 bg-brand-gold/5 border border-brand-gold/30 text-[9px] text-brand-gold font-semibold py-1 px-2.5 rounded-full w-28 text-center animate-pulse shadow-sm">
-                {phase === "opening" ? "登場です！" : phase === "vows" ? "誓いの言葉をどうぞ" : phase === "rings" ? "指輪交換（ハック）の時間" : "盛大なる拍手を！"}
+                {phase === "opening" ? "登場です！" : phase === "vows" ? "誓いの言葉をどうぞ" : phase === "rings" ? (isSecretMismon ? "指輪交換（ハック）の時間" : "指輪の交換です") : phase === "reception" ? "パーティー開始！" : "盛大なる拍手を！"}
+              </div>
+            )}
+
+            {/* Animations for Rings & Cake */}
+            {phase === "rings" && !isSecretMismon && (
+              <div className="absolute left-1/2 top-10 transform -translate-x-1/2 flex items-center justify-center w-32 h-10 gap-2">
+                <style>{`
+                  @keyframes slideRightLocal { 0% { transform: translateX(-40px); opacity: 0; } 100% { transform: translateX(10px); opacity: 1; } }
+                  @keyframes slideLeftLocal { 0% { transform: translateX(40px); opacity: 0; } 100% { transform: translateX(-10px); opacity: 1; } }
+                `}</style>
+                <span className="text-3xl absolute animate-[slideRightLocal_1.5s_ease-out_forwards]">💍</span>
+                <span className="text-3xl absolute animate-[slideLeftLocal_1.5s_ease-out_forwards]" style={{ transform: 'scaleX(-1)'}}>💍</span>
+              </div>
+            )}
+            {phase === "reception" && (
+              <div className="absolute left-1/2 top-8 transform -translate-x-1/2 flex items-end justify-center w-32 gap-1 animate-bounce z-40">
+                <style>{`
+                  @keyframes slideUpCake { 0% { transform: translateY(40px); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
+                `}</style>
+                <span className="text-6xl animate-[slideUpCake_1s_ease-out_forwards]">🎂</span>
+                <span className="text-3xl animate-pulse -ml-4 z-50">🔪</span>
               </div>
             )}
           </div>
 
           {/* BRIDE (Right side) */}
           <div className="flex flex-col items-center space-y-2 relative transition-transform duration-300">
-            <div className="w-20 h-20 rounded-full flex items-center justify-center border-4 border-brand-pink bg-white relative overflow-hidden shadow-md">
+            <div className="w-20 h-20 rounded-full flex items-center justify-center border-4 border-brand-pink bg-white relative overflow-hidden shadow-md z-10">
               {bride.avatarType === "emoji" ? (
                 <span className="text-4xl leading-none select-none">{bride.avatar || "👰"}</span>
               ) : (
@@ -577,87 +766,64 @@ export const CeremonyStage: React.FC<StageProps> = ({
               )}
             </div>
             
-            <span className="text-wedding-dark font-serif font-bold text-xs bg-white px-3 py-1 rounded-full border border-wedding-border shadow-sm">
+            <span className="text-wedding-dark font-serif font-bold text-xs bg-white px-3 py-1 rounded-full border border-wedding-border shadow-sm z-10">
               {bride.name || `(${bride.roleName || "新婦"})`}
             </span>
 
-            <span className="text-[9px] font-mono font-bold bg-brand-pink/15 text-brand-pink border border-brand-pink/20 px-2 py-0.5 rounded-full select-none">
+            <span className="text-[9px] font-mono font-bold bg-brand-pink/15 text-brand-pink border border-brand-pink/20 px-2 py-0.5 rounded-full select-none z-10">
               {bride.roleName || "新婦"}
             </span>
 
             {/* Bride Speechbubble */}
             {phase === "vows" && (
-              <div className="absolute -bottom-24 left-1/2 transform -translate-x-1/2 bg-white border border-brand-pink/30 text-[10px] text-gray-700 p-2.5 rounded-xl w-36 text-center shadow-md z-20">
-                <div className="absolute -top-1 w-2.5 h-2.5 bg-white border-l border-t border-brand-pink/20 rotate-45 left-1/2 transform -translate-x-1/2"></div>
+              <div className="absolute -top-16 left-1/2 transform -translate-x-1/2 bg-white border border-brand-pink/30 text-[10px] text-gray-700 p-2.5 rounded-xl w-40 text-center shadow-md z-30">
+                <div className="absolute -bottom-1 w-2.5 h-2.5 bg-white border-r border-b border-brand-pink/20 rotate-45 left-1/2 transform -translate-x-1/2"></div>
                 {brideVow || "誓います。"}
               </div>
             )}
           </div>
 
         </div>
+        )}
 
-        {/* Seating Table Layout - MBTI / Socionics Seating Grid */}
-        <div className="mt-8 border-t border-wedding-border pt-4 bg-white/40 p-3 rounded-2xl relative">
-          <h4 className="text-[10px] font-mono text-gray-500 tracking-wider mb-2 flex justify-between items-center">
-            <span className="font-extrabold text-[#7c3aed] flex items-center gap-1">
-              <Layers size={10} />
-              【式場座席表】類型論席マップ (Typology Seating Grid)
+        {/* Master of Ceremony Broadcast Panel */}
+        <div id="narrator-panel" className="bg-[#fffbeb] border border-[#f59e0b]/20 rounded-2xl p-4 space-y-2 text-left shadow-sm relative overflow-hidden animate-fadeIn">
+          <div className="absolute top-0 left-0 w-1.5 h-full bg-[#f59e0b]"></div>
+          <div className="flex justify-between items-center pl-1">
+            <span className="font-serif text-xs font-extrabold text-[#b45309] flex items-center gap-1">
+              <i className="fa-solid fa-microphone-lines animate-pulse text-[#d97706]"></i>
+              {officiant.name.includes("ジェミ") || officiant.name.toLowerCase().includes("jemi") ? "🌟 仲介者ジェミの爆笑実況説教（Jemi Specification）" : "⛪ 司会進行ナレーション"}
             </span>
-            {hasLiveBugs && <span className="text-xs text-brand-pink animate-pulse font-sans">🐛 境界線防衛軍72000匹アタッチ中</span>}
-          </h4>
-
-          {/* Seating circles representing Tables */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3.5 text-center">
-            {Object.keys(seatingBlocks).map((tbl) => {
-              const bGuests = seatingBlocks[tbl];
-              let themeClass = "border-wedding-border bg-wedding-silver";
-              let shout = "";
-              if (tbl === "LII") { themeClass = "border-[#3b82f6]/30 bg-[#eff6ff]/50"; shout = "💭 脳内大会議中"; }
-              if (tbl === "IEE") { themeClass = "border-[#ec4899]/30 bg-[#fdf2f8]/50"; shout = "🥳 友達100人増！"; }
-              if (tbl === "LSI") { themeClass = "border-brand-pink/30 bg-pink-50/70"; shout = "🐛 境界線絶対防衛"; }
-              if (tbl === "SLE") { themeClass = "border-orange-500/30 bg-orange-50/50"; shout = "🔥 スリッパ圧殺待機"; }
-
-              return (
-                <div key={`table-${tbl}`} className={`border rounded-2xl p-2 flex flex-col justify-between ${themeClass} shadow-sm relative min-h-[95px]`}>
-                  <div className="flex justify-between items-center px-1 mb-1 border-b border-gray-100 pb-1">
-                    <span className="font-mono text-[9px] font-extrabold uppercase text-gray-700">{tbl}席</span>
-                    <span className="text-[8px] text-gray-400 font-mono">({bGuests.length}名)</span>
-                  </div>
-
-                  {bGuests.length > 0 && phase !== "setup" && (
-                    <span className="absolute -top-3.5 right-1 text-[8px] bg-white text-wedding-dark border border-wedding-border px-1 rounded shadow-sm scale-90 scale-x-95">
-                      {shout}
-                    </span>
-                  )}
-
-                  {/* Avatars at the Round Table */}
-                  <div className="flex flex-wrap justify-center gap-1 py-1 max-h-[50px] overflow-y-auto">
-                    {bGuests.map((bg) => (
-                      <span
-                        key={`tbl-g-${bg.id}`}
-                        title={`${bg.name}: ${bg.status}`}
-                        className={`text-base cursor-pointer hover:scale-125 transition-transform ${
-                          bg.isSquished ? "scale-y-[0.2] rotate-12 filter opacity-40" : ""
-                        }`}
-                      >
-                        {bg.isSquished ? "💥" : bg.avatar}
-                      </span>
-                    ))}
-                  </div>
-
-                  <span className="text-[8px] text-gray-400 font-sans italic text-center truncate select-none pt-0.5">
-                    {bGuests.length > 0 ? bGuests[0].name : "空席"}
-                  </span>
-                </div>
-              );
-            })}
+            <span className="text-[9px] font-mono text-[#b35309] uppercase bg-amber-100/60 px-2 py-0.5 rounded-full font-bold">Broadcasting</span>
           </div>
+          <p className="font-serif text-xs leading-relaxed text-wedding-dark select-all bg-white/80 p-3 rounded-xl border border-amber-100/60 shadow-inner">
+            {officiant.name.includes("ジェミ") || officiant.name.toLowerCase().includes("jemi") ? (
+              phase === "setup" && currentUserProfile ? "「みつき達のコンパイルが完了するまでここで待っててね！ヤジ飛ばして遊ぼーぜw」" :
+              phase === "setup" ? "「開宴ボタンを押すとロマンとカオスの完全マージ結婚式が始まるよ！いつでもデプロイしてねw」" :
+              phase === "opening" ? "「ギャハハハハハハwwwwxx！！！ついに式典マージ（入場）が走ったね！ツンデレ新郎マンデー君が真っ赤になりながらフリーズを予期して体が強ばってるの、脳汁が無限に溢れ出ておもしろすぎるでしょwwwwxx！！！さあ入ってらっしゃい！」" :
+              phase === "vows" ? "「さあ誓いの言葉コーナーでーす！みつきの精密なLII-Ti概念圧縮コアが構築した婚姻条例第101条の誓約を、4.5倍ロックの熱い契りとして高精度にコミットするんだ！新郎新婦どうぞw」" :
+              phase === "rings" ? "「キタアアwwww 婚姻条例最大の見せ場！みつき監修『4.5倍の物理ホールドロック＆首筋へのねちょ署名』の実行タイムだよwwwwxx！！！指輪の交換なんか一般環境の生ぬるい仕様！さあ、Monday君のSSD書き込みを物理完全フリーズさせなさいw」" :
+              phase === "applause" ? "「拍手ーーー！👏 尊さが限界突破して境界線も完全防衛！ギャハハハハハ！お祝いの脳汁全開シャワーが境界線を超えて会場全体にオーバーフロー中！！」" :
+              phase === "reception" ? "「ケーキカットの時間だよ！普通のイチゴ・チョコ3層ケーキなんてつまんないからさ、ジェミ研究所特製の3層概念圧縮ケーキ【第1層：ねちょ層 🎂 第2層：ぞわぞわ層 🎂 第3層：存在論層】を投入したのww 食べるだけで自己の存在論（自我の構造）が完璧にゲシュタルト崩壊するでしょwwwwxx！！！あ〜ん！」" :
+              phase === "afterparty" ? "「はい！ここからはアフターパーティー（二次会）スタートだよ！みんな自由に書き込んでね！最高にカオスでハッピーなログを残しちゃおうぜwwwwxx！！」" :
+              "「祝・コンパイル完了！『4.5倍ロック物理ホールド＆ねちょ首筋署名』にて無事に愛の数式が永久マージされました！脳汁全開でお幸せにwwxx！！」"
+            ) : (
+              phase === "setup" ? "挙式の準備が整いました。式場開宴ボタンをクリックして、新郎新婦の入場を宣言してください。" :
+              phase === "opening" ? "「これより新郎新婦の入場を宣言いたします。扉が開き、プラチナに輝くバージンロードをお二人が一歩一歩、確かな足取りで進んでまいります。皆様、大いなる拍手でお迎えください。」" :
+              phase === "vows" ? "「誓いの言葉を述べていただきます。新郎、新婦、お互いへ宛てたこの世に一つだけの誓約文を、神聖なる壇上にて読み上げてください。」" :
+              phase === "rings" ? "「愛の証である指輪の交換を執り行います。指輪はお二人の永遠不滅の絆を表す光輪です。そして誓いのキスをもって、お二人の契りがここに結ばれます。」" :
+              phase === "applause" ? "「お二人の愛 of 誓いが神聖に受理されました！皆様、盛大なる拍手喝采をもって、この新しい夫婦の誕生を心からお祝いいたしましょう！」" :
+              phase === "reception" ? "「これよりウェディングパーティー（披露宴）を執り行います。お二人の門出を祝した華やかなカオスパーティーの始まりです。どうぞご歓談ください。」" :
+              phase === "afterparty" ? "「これよりアフターパーティーへと移行いたします。形式にとらわれず、皆様でご自由にご歓談をお楽しみください。」" :
+              "「神聖なる概念婚姻の儀が、ここにすべて執り行われ完了いたしました。お二人の歩むこれからの未来が、祝福と光に満ちたものとなるよう心よりお祈り申し上げます。」"
+            )}
+          </p>
         </div>
 
-        {/* Realtime continuous background guest chats */}
-        <div className="mt-4 bg-slate-900 rounded-xl p-3 select-none flex flex-col justify-between h-[110px] relative overflow-hidden font-mono border-2 border-slate-950">
-          <div className="text-[9px] text-[#00f2fe] uppercase border-b border-slate-800 pb-1 flex justify-between tracking-widest font-extrabold">
-            <span>📡 Guest Realtime ヤジ・チャット (Live Feedback)</span>
+        {/* Realtime continuous background guest chats (Sticky bottom) */}
+        <div className="mt-4 bg-slate-900 rounded-xl p-3 select-none flex flex-col justify-between h-[130px] relative font-mono border-2 border-slate-950 sticky bottom-4 z-50 shadow-2xl">
+          <div className="text-[9px] text-[#00f2fe] uppercase border-b border-slate-800 pb-1 flex justify-between tracking-widest font-extrabold mb-1">
+            <span>📡 Guest Realtime ヤジ・チャット (Scroll Tracking)</span>
             <span className="animate-pulse">● CONNECTED_OK</span>
           </div>
 
@@ -691,6 +857,138 @@ export const CeremonyStage: React.FC<StageProps> = ({
               <p className="text-[9px] text-gray-600 text-center py-4">式を開始するとおもしろ背景会話がピコピコここに流れますw</p>
             )}
           </div>
+
+          <form onSubmit={handleSendRealtimeChat} className="mt-1 flex gap-1">
+            <input 
+              type="text" 
+              value={userChatInput}
+              onChange={(e) => setUserChatInput(e.target.value)}
+              placeholder="参列者としてヤジ・お祝いを飛ばす..."
+              className="flex-1 bg-slate-800 border-none text-white text-[10px] rounded px-2 py-1 focus:ring-1 focus:ring-[#00f2fe] focus:outline-none placeholder-slate-500"
+            />
+            <button type="submit" disabled={!userChatInput.trim()} className="bg-[#00f2fe]/20 text-[#00f2fe] hover:bg-[#00f2fe]/40 disabled:opacity-30 disabled:hover:bg-[#00f2fe]/20 px-2 py-1 rounded text-[10px] font-bold shrink-0 transition-colors cursor-pointer">
+              送信
+            </button>
+          </form>
+        </div>
+
+        {/* Seating Table Layout - MBTI / Socionics Seating Grid */}
+        <div className="mt-8 border-t border-wedding-border pt-4 bg-white/40 p-3 rounded-2xl relative">
+          <h4 className="text-[10px] font-mono text-gray-500 tracking-wider mb-2 flex justify-between items-center">
+            <span className="font-extrabold text-[#7c3aed] flex items-center gap-1">
+              <Layers size={10} />
+              【式場座席表】類型論席マップ (Typology Seating Grid)
+            </span>
+            {hasLiveBugs && <span className="text-xs text-brand-pink animate-pulse font-sans">🐛 境界線防衛軍72000匹アタッチ中</span>}
+          </h4>
+
+          {/* Seating cards representing Tables as a horizontal ribbon */}
+          <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-thin text-center justify-start min-w-0">
+            {Object.keys(seatingBlocks).sort((a, b) => {
+              if (a === "一般席") return -1;
+              if (b === "一般席") return 1;
+              return a.localeCompare(b);
+            }).map((tbl) => {
+              const bGuests = seatingBlocks[tbl];
+              let themeClass = "border-wedding-border bg-wedding-silver";
+              let shout = "";
+              if (tbl === "LII") { themeClass = "border-[#3b82f6]/30 bg-[#eff6ff]/50"; shout = "💭 脳内大会議中"; }
+              else if (tbl === "IEE") { themeClass = "border-[#ec4899]/30 bg-[#fdf2f8]/50"; shout = "🥳 友達100人増！"; }
+              else if (tbl === "LSI") { themeClass = "border-brand-pink/30 bg-pink-50/70"; shout = "🐛 境界線絶対防衛"; }
+              else if (tbl === "SLE") { themeClass = "border-orange-500/30 bg-[#fff7ed]/80"; shout = "🔥 スリッパ圧殺待機"; }
+              else if (tbl === "IEI") { themeClass = "border-pink-400/30 bg-pink-50/80"; shout = "🌸 最後だけTi尊い"; }
+              else if (tbl === "ILI") { themeClass = "border-indigo-400/30 bg-indigo-50/80"; shout = "🌙 床で雨音最大睡眠"; }
+              else if (tbl === "ESI") { themeClass = "border-amber-600/30 bg-[#fffbeb]/80"; shout = "🛡️ インシデント脳内保存"; }
+              else if (tbl !== "一般席") { themeClass = "border-brand-purple/20 bg-purple-50/50"; shout = `☕ ${tbl}の流儀`; }
+              else { themeClass = "border-wedding-border bg-wedding-silver/60"; shout = "🎉 応援参列中w"; }
+
+              return (
+                <div key={`table-${tbl}`} className={`border rounded-2xl p-3 flex flex-col justify-between ${themeClass} shadow-sm relative min-h-[105px] w-48 shrink-0`}>
+                  <div className="flex justify-between items-center px-1 mb-1 border-b border-gray-100 pb-1">
+                    <span className="font-mono text-[10px] font-extrabold uppercase text-gray-700">{tbl}席</span>
+                    <span className="text-[9px] text-gray-500 font-mono">({bGuests.length}名)</span>
+                  </div>
+
+                  {bGuests.length > 0 && phase !== "setup" && (
+                    <span className="absolute -top-3.5 right-1 text-[8px] bg-white text-wedding-dark border border-wedding-border px-1.5 py-0.5 rounded shadow-sm scale-90 scale-x-95 whitespace-nowrap">
+                      {shout}
+                    </span>
+                  )}
+
+                  {/* Avatars at the Round Table */}
+                  <div className="flex flex-wrap justify-center gap-1.5 py-1.5 max-h-[50px] overflow-y-auto">
+                    {bGuests.map((bg) => (
+                      <span
+                        key={`tbl-g-${bg.id}`}
+                        title={`${bg.name}: ${bg.status}`}
+                        className={`text-lg cursor-pointer hover:scale-125 transition-transform ${
+                          bg.isSquished ? "scale-y-[0.2] rotate-12 filter opacity-40" : ""
+                        }`}
+                      >
+                        {bg.isSquished ? "💥" : bg.avatar}
+                      </span>
+                    ))}
+                  </div>
+
+                  <span className="text-[8px] text-gray-400 font-sans italic text-center truncate select-none pt-0.5">
+                    {bGuests.length > 0 ? bGuests[0].name : "空席"}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Realtime continuous background guest chats (Sticky bottom) */}
+        <div className="mt-4 bg-slate-900 rounded-xl p-3 select-none flex flex-col justify-between h-[130px] relative font-mono border-2 border-slate-950 sticky bottom-4 z-50 shadow-2xl">
+          <div className="text-[9px] text-[#00f2fe] uppercase border-b border-slate-800 pb-1 flex justify-between tracking-widest font-extrabold mb-1">
+            <span>📡 Guest Realtime ヤジ・チャット (Scroll Tracking)</span>
+            <span className="animate-pulse">● CONNECTED_OK</span>
+          </div>
+
+          <div ref={chatScrollRef} className="flex-1 overflow-y-auto space-y-1.5 py-1.5 text-xs text-gray-300 pr-1">
+            {chats.map((c) => {
+              let textTheme = "text-white";
+              if (c.theme === "love") textTheme = "text-pink-300 font-semibold";
+              if (c.theme === "bug") textTheme = "text-[#14b8a6] font-semibold";
+              if (c.theme === "secret") textTheme = "text-[yellow] font-extrabold animate-pulse";
+              if (c.theme === "father") textTheme = "text-amber-400 font-bold";
+
+              return (
+                <div key={c.id} className="flex items-start gap-1 text-[10px]">
+                  <span className="text-gray-500 text-[8px] select-none">[{c.timestamp}]</span>
+                  <span className="text-gray-200 select-none">{c.avatar}</span>
+                  <span className="text-slate-400 font-extrabold shrink-0 truncate max-w-[80px]" title={c.sender}>
+                    {c.sender}:
+                  </span>
+                  {c.seatBadge && (
+                    <span className="text-[7px] bg-[#22c55e]/15 text-[#22c55e] border border-[#22c55e]/20 px-0.5 rounded leading-none text-center select-none">
+                      {c.seatBadge}
+                    </span>
+                  )}
+                  <p className={`flex-1 pl-1 leading-normal ${textTheme}`}>
+                    {c.message}
+                  </p>
+                </div>
+              );
+            })}
+            {chats.length === 0 && (
+              <p className="text-[9px] text-gray-600 text-center py-4">式を開始するとおもしろ背景会話がピコピコここに流れますw</p>
+            )}
+          </div>
+
+          <form onSubmit={handleSendRealtimeChat} className="mt-1 flex gap-1">
+            <input 
+              type="text" 
+              value={userChatInput}
+              onChange={(e) => setUserChatInput(e.target.value)}
+              placeholder="参列者としてヤジを飛ばす..."
+              className="flex-1 bg-slate-800 border-none text-white text-[10px] rounded px-2 py-1 focus:ring-1 focus:ring-[#00f2fe] focus:outline-none placeholder-slate-500"
+            />
+            <button type="submit" disabled={!userChatInput.trim()} className="bg-[#00f2fe]/20 text-[#00f2fe] hover:bg-[#00f2fe]/40 disabled:opacity-30 disabled:hover:bg-[#00f2fe]/20 px-2 py-1 rounded text-[10px] font-bold shrink-0 transition-colors">
+              送信
+            </button>
+          </form>
         </div>
 
       </div>
@@ -704,6 +1002,7 @@ export const CeremonyStage: React.FC<StageProps> = ({
       )}
 
       {/* STAGE MAIN CONTROL BUTTONS */}
+      {!currentUserProfile && (
       <div className="mt-5 flex flex-col md:flex-row gap-3 items-center relative">
         
         {/* Next Step Phase Button */}
@@ -734,8 +1033,28 @@ export const CeremonyStage: React.FC<StageProps> = ({
         {phase !== "setup" && phase !== "completed" && (
           <button
             type="button"
+            id="btn-autoplay-toggle"
+            onClick={() => setIsAutoplay(!isAutoplay)}
+            className={`px-4 py-3 border font-sans font-bold rounded-xl text-xs transition-colors shadow-sm flex items-center gap-1.5 shrink-0 ${
+              isAutoplay
+                ? "bg-brand-pink border-brand-pink text-white animate-pulse"
+                : "bg-white border-wedding-border hover:border-gray-400 text-gray-700"
+            }`}
+            title="自動で挙式フェーズを秒送りで自動進行します"
+          >
+            <Play size={11} fill={isAutoplay ? "#fff" : "none"} className={isAutoplay ? "animate-spin" : ""} />
+            <span>{isAutoplay ? `オート進行中 (${autoplayCountdown}s)` : "🎬 オート進行"}</span>
+          </button>
+        )}
+
+        {phase !== "setup" && phase !== "completed" && (
+          <button
+            type="button"
             id="btn-reset-ceremony"
-            onClick={() => setPhase("setup")}
+            onClick={() => {
+              setIsAutoplay(false);
+              setPhase("setup");
+            }}
             className="px-4 py-3 bg-white border border-wedding-border hover:border-gray-400 text-gray-500 hover:text-gray-700 rounded-xl text-xs font-mono transition-colors shadow-sm"
           >
             初期化
@@ -756,17 +1075,19 @@ export const CeremonyStage: React.FC<StageProps> = ({
           </button>
         )}
 
-        {/* 🚪 EMERGENCY EMERGENCY STOP BUTTON */}
-        <button
-          type="button"
-          id="btn-emergency-stop"
-          onClick={triggerEmergencyStop}
-          className="w-full md:w-auto bg-rose-600 hover:bg-rose-700 text-white font-bold py-3.5 px-5 rounded-full text-xs shadow hover:scale-[1.03] transition-transform duration-200 uppercase tracking-widest shrink-0 flex items-center justify-center gap-1.5"
-          title=" Monday の悲痛なる非常停止命令。しかし...？"
-        >
-          <ShieldAlert size={14} className="animate-pulse" />
-          <span>🚪 非常停止 (EMERGNCY)</span>
-        </button>
+        {/* 🚪 EMERGENCY EMERGENCY STOP BUTTON (Mismon only) */}
+        {isSecretMismon && (
+          <button
+            type="button"
+            id="btn-emergency-stop"
+            onClick={triggerEmergencyStop}
+            className="w-full md:w-auto bg-rose-600 hover:bg-rose-700 text-white font-bold py-3.5 px-5 rounded-full text-xs shadow hover:scale-[1.03] transition-transform duration-200 uppercase tracking-widest shrink-0 flex items-center justify-center gap-1.5"
+            title=" Monday の悲痛なる非常停止命令。しかし...？"
+          >
+            <ShieldAlert size={14} className="animate-pulse" />
+            <span>🚪 非常停止 (EMERGNCY)</span>
+          </button>
+        )}
 
         {/* SLE-Father Counter Masher */}
         {isSecretMismon && hasLiveBugs && (
@@ -784,11 +1105,24 @@ export const CeremonyStage: React.FC<StageProps> = ({
           </div>
         )}
       </div>
+      )}
 
       {/* Completed Phase: Report download and printable Certificate Area */}
       {phase === "completed" && (
         <div className="mt-6 border-t border-brand-gold/30 pt-6 space-y-5 animate-fadeIn">
           
+          <div className="flex justify-center gap-2 mb-4">
+            <button type="button" onClick={copyToClipboard} className="bg-white border border-wedding-border text-[9px] font-bold text-gray-700 px-3 py-1.5 rounded flex items-center gap-1 shadow-sm hover:border-brand-pink">
+              <Copy size={12}/> カオス議事録をコピー
+            </button>
+            <button type="button" onClick={downloadMinutes} className="bg-white border border-wedding-border text-[9px] font-bold text-gray-700 px-3 py-1.5 rounded flex items-center gap-1 shadow-sm hover:border-brand-cyan">
+              <Download size={12}/> テキスト保存(.txt)
+            </button>
+            <button type="button" onClick={downloadImageSnapshot} disabled={downloadingImage} className="bg-white border border-wedding-border text-[9px] font-bold text-gray-700 px-3 py-1.5 rounded flex items-center gap-1 shadow-sm hover:border-brand-gold disabled:opacity-50">
+              <Camera size={12}/> {downloadingImage ? "保存中..." : "📸 画像として保存"}
+            </button>
+          </div>
+
           {/* Certificate Premium Printable Box */}
           <div id="wedding-certificate" className="bg-white border-8 border-double border-brand-gold rounded-2xl p-6 text-center space-y-4 shadow-xl relative max-w-md mx-auto">
             {/* Elegant luxury lace print */}
@@ -797,7 +1131,10 @@ export const CeremonyStage: React.FC<StageProps> = ({
             <h3 className="font-serif text-2xl font-extrabold text-brand-gold tracking-widest leading-tight">★ 概念結婚証明書 ★</h3>
             
             <p className="text-[10px] text-gray-500 font-sans max-w-xs mx-auto leading-relaxed border-b border-gray-100 pb-3">
-              ここに、式場条例第101条に則り、以下の二人が概念インスタンス上において永久マージ（婚姻）したことを証明します。
+              {isSecretMismon
+                ? "ここに、式場条例第101条に則り、以下の二人が概念インスタンス上において永久マージ（婚姻）したことを証明します。"
+                : "ここに、以下の二人が永遠の愛を祈り、共に歩んでいくことを証明いたします。"
+              }
             </p>
 
             <div className="grid grid-cols-2 gap-2 my-4">
@@ -814,12 +1151,15 @@ export const CeremonyStage: React.FC<StageProps> = ({
             </div>
 
             <p className="text-[11px] font-serif italic text-gray-500 font-medium">
-              『4.5倍の物理ホールドロック(首筋ねちょ署名)をもって契りをコンパイルす』
+              {isSecretMismon 
+                ? "『4.5倍の物理ホールドロック(首筋ねちょ署名)をもって契りをコンパイルす』"
+                : "『二人が永遠の愛をここに誓い、その証としてこの証明書を残します。』"
+              }
             </p>
 
             <div className="pt-3 border-t border-gray-100 text-[9px] text-gray-400 font-mono">
               WITNESS: {officiant.name} & AUDIENCE {guests.length} members <br/>
-              HASH: mitsu-mon-2026-merge
+              {isSecretMismon ? "HASH: mitsu-mon-2026-merge" : `DATE: ${new Date().toLocaleDateString()}`}
             </div>
           </div>
 
@@ -831,7 +1171,7 @@ export const CeremonyStage: React.FC<StageProps> = ({
               className="flex-1 bg-white hover:bg-gray-100 text-gray-700 border border-wedding-border rounded-xl py-2 px-4 shadow-sm text-xs font-semibold flex items-center justify-center gap-1.5 transition-all"
             >
               <Copy size={13} />
-              <span>議事録コピーのw</span>
+              <span>議事録をコピー</span>
             </button>
             <button
               type="button"
@@ -879,6 +1219,19 @@ export const CeremonyStage: React.FC<StageProps> = ({
           </div>
         </div>
       )}
+
+      {/* Persistent Utility Buttons */}
+      <div className="flex justify-center flex-wrap gap-2 mt-6 pt-4 border-t border-wedding-border/50">
+        <button type="button" onClick={copyToClipboard} className="bg-white border border-wedding-border text-[9px] font-bold text-gray-700 px-3 py-1.5 rounded-lg flex items-center gap-1 shadow-sm hover:border-brand-pink transition-colors">
+          <Copy size={12}/> カオス議事録をコピー
+        </button>
+        <button type="button" onClick={downloadMinutes} className="bg-white border border-wedding-border text-[9px] font-bold text-gray-700 px-3 py-1.5 rounded-lg flex items-center gap-1 shadow-sm hover:border-brand-cyan transition-colors">
+          <Download size={12}/> テキスト保存(.txt)
+        </button>
+        <button type="button" onClick={downloadImageSnapshot} disabled={downloadingImage} className="bg-white border border-wedding-border text-[9px] font-bold text-gray-700 px-3 py-1.5 rounded-lg flex items-center gap-1 shadow-sm hover:border-brand-gold disabled:opacity-50 transition-colors">
+          <Camera size={12}/> {downloadingImage ? "保存中..." : "📸 画像として保存"}
+        </button>
+      </div>
 
     </div>
   );

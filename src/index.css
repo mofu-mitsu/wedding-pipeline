@@ -123,3 +123,27 @@
   box-shadow: 0 0 10px rgba(13, 148, 136, 0.15);
 }
 
+@media print {
+  body {
+    background-color: white !important;
+  }
+  .no-print, button, form, nav, footer, header {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  #certificate-area {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    page-break-inside: avoid;
+  }
+}
+

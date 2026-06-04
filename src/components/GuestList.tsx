@@ -20,6 +20,7 @@ interface GuestListProps {
   ) => void;
   onRemoveGuest: (id: string) => void;
   onClearGuests: () => void;
+  activeRoomId?: string;
 }
 
 export const GuestList: React.FC<GuestListProps> = ({
@@ -27,13 +28,26 @@ export const GuestList: React.FC<GuestListProps> = ({
   onAddGuest,
   onRemoveGuest,
   onClearGuests,
+  activeRoomId,
 }) => {
   const [name, setName] = useState("");
   const [avatar, setAvatar] = useState("😎");
   const [status, setStatus] = useState("お祝い中！🎉");
+  const [copiedInvite, setCopiedInvite] = useState(false);
+
+  const handleCopyInviteUrl = () => {
+    if (!activeRoomId) return;
+    const shareUrl = `${window.location.origin}?room=${activeRoomId}`;
+    const textToCopy = `💒 挙式ルーム「${activeRoomId}」へのオンライン招待状を受け取りました！\n\n下記の招待URLから同じルームに入室し、「ご祝儀電撃参列」からあなたのキャラクターを席にデプロイしてくださいw\n\n🔗 参列URL: ${shareUrl}\n🔑 合言葉: ${activeRoomId}`;
+    
+    navigator.clipboard.writeText(textToCopy).then(() => {
+      setCopiedInvite(true);
+      setTimeout(() => setCopiedInvite(false), 2000);
+    });
+  };
 
   // Typology state
-  const [typoSystem, setTypoSystem] = useState<"mbti" | "socionics" | "none">("socionics");
+  const [typoSystem, setTypoSystem] = useState<"mbti" | "socionics" | "none">("none");
   const [selectedSeat, setSelectedSeat] = useState("LII");
 
   const handleSeatChange = (seat: string) => {
@@ -122,6 +136,17 @@ export const GuestList: React.FC<GuestListProps> = ({
           <div className="grid grid-cols-3 gap-1.5">
             <button
               type="button"
+              onClick={() => handleSystemChange("none")}
+              className={`py-1 text-[10px] font-mono rounded border transition-all ${
+                typoSystem === "none"
+                  ? "bg-brand-purple/15 border-brand-purple text-brand-purple font-bold shadow-sm"
+                  : "bg-white border-wedding-border text-gray-500 hover:border-gray-400"
+              }`}
+            >
+              一般来賓席
+            </button>
+            <button
+              type="button"
               onClick={() => handleSystemChange("socionics")}
               className={`py-1 text-[10px] font-mono rounded border transition-all ${
                 typoSystem === "socionics"
@@ -141,17 +166,6 @@ export const GuestList: React.FC<GuestListProps> = ({
               }`}
             >
               MBTI席
-            </button>
-            <button
-              type="button"
-              onClick={() => handleSystemChange("none")}
-              className={`py-1 text-[10px] font-mono rounded border transition-all ${
-                typoSystem === "none"
-                  ? "bg-brand-purple/15 border-brand-purple text-brand-purple font-bold shadow-sm"
-                  : "bg-white border-wedding-border text-gray-500 hover:border-gray-400"
-              }`}
-            >
-              一般来賓席
             </button>
           </div>
 
@@ -300,6 +314,39 @@ export const GuestList: React.FC<GuestListProps> = ({
           ))
         )}
       </div>
+      
+      {activeRoomId && (
+        <div className="bg-gradient-to-r from-pink-50/50 to-amber-50/40 border border-wedding-border rounded-xl p-3.5 space-y-2 mt-4 text-left">
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm">✉️</span>
+            <span className="font-serif font-bold text-[11px] text-wedding-dark">ルーム参列用 招待チケット（合言葉入り）</span>
+          </div>
+          <p className="text-[10px] text-gray-500 leading-normal leading-relaxed">
+            お友達や来賓をこのお部屋に招待して、同じ式場で同時参列させることができます。下記のボタンから招待メッセージとURLをコピーして共有してください！
+          </p>
+          <button
+            type="button"
+            onClick={handleCopyInviteUrl}
+            className={`w-full py-2 px-3 rounded-lg font-sans text-[11px] font-bold tracking-wider transition-all flex items-center justify-center gap-1.5 ${
+              copiedInvite
+                ? "bg-green-600 text-white shadow-sm"
+                : "bg-wedding-dark text-white hover:bg-wedding-dark/90 hover:scale-[1.01] shadow-md"
+            }`}
+          >
+            {copiedInvite ? (
+              <>
+                <i className="fa-solid fa-check" />
+                <span>招待情報をコピー完了しました！🎉</span>
+              </>
+            ) : (
+              <>
+                <i className="fa-solid fa-copy" />
+                <span>招待メッセージ＆参列URLをコピー 📋</span>
+              </>
+            )}
+          </button>
+        </div>
+      )}
 
       {guests.length > 0 && (
         <button

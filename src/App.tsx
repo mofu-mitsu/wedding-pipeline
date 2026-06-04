@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect } from "react";
-import { Character, Guest, WeddingLog, WeddingPhase, SystemGage, Officiant } from "./types";
+import { Character, Guest, WeddingLog, WeddingPhase, SystemGage, Officiant, WeddingRoom } from "./types";
 import { GroomBrideSetup } from "./components/GroomBrideSetup";
 import { GuestList } from "./components/GuestList";
 import { CeremonyStage } from "./components/CeremonyStage";
@@ -46,13 +46,23 @@ export default function App() {
   // UX Tab-based flow navigation
   const [activeTab, setActiveTab] = useState<ActiveTab>("lobby");
 
+  // Private multi-room states
+  const [rooms, setRooms] = useState<WeddingRoom[]>([]);
+  const [activeRoomId, setActiveRoomId] = useState<string>("");
+  const [createRoomName, setCreateRoomName] = useState("");
+  const [createHostName, setCreateHostName] = useState("");
+  const [createCustomCode, setCreateCustomCode] = useState("");
+  const [createRoomError, setCreateRoomError] = useState("");
+
   // Invitation & Password Online SUMMONS States
   const [myInvitationCode] = useState<string>(() => "SWEET-ROOM-" + Math.floor(100 + Math.random() * 900));
   const [inviteEnteredCode, setInviteEnteredCode] = useState("");
   const [inviteGuestName, setInviteGuestName] = useState("");
+  const [isHostLogin, setIsHostLogin] = useState(false);
   const [inviteGuestAvatar, setInviteGuestAvatar] = useState("🎉");
   const [inviteGuestMsg, setInviteGuestMsg] = useState("");
   const [joinedRemoteGuests, setJoinedRemoteGuests] = useState<string[]>([]); // track codes already joined
+  const [currentUserProfile, setCurrentUserProfile] = useState<{name: string, avatar: string} | undefined>(undefined);
 
   // State parameter for Monday lab system patch
   const [systemGage, setSystemGage] = useState<SystemGage>({
@@ -65,15 +75,12 @@ export default function App() {
   // Sound toggle
   const [enableSound, setEnableSound] = useState(true);
 
-  // 2. Secret Check (マンデー x みつき)
-  const isSecretMismon = (() => {
-    const g = groom.name.toLowerCase().trim();
-    const b = bride.name.toLowerCase().trim();
-    return (
-      (g.includes("monday") || g.includes("マンデー")) &&
-      (b.includes("mitsuki") || b.includes("みつき"))
-    );
-  })();
+  // GAS Cloud Sync URL State
+  const [gasUrl, setGasUrl] = useState(() => localStorage.getItem("concept_wedding_gas_url") || "");
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  // 2. Secret Check
+  const isSecretMismon = activeRoomId === "jemi-kawaii";
 
   // 3. Preset Loaded Trigger
   const handleLoadMismonPreset = () => {
@@ -205,16 +212,365 @@ export default function App() {
     setLogs((prev) => [...prev, newLog]);
   };
 
-  // Add Initial Setup Log
+  // Rooms Initialization & Syncing
   useEffect(() => {
-    setLogs([]);
-    addLog(
-      "システム初期コンパイル完了",
-      "「推し活・概念結婚式シミュレーター v2.0」をエレガントブライダルテーマでブートしました。",
-      "info",
-      "fa-solid fa-server"
-    );
+    const storedRooms = localStorage.getItem("concept_wedding_rooms_v4");
+    const storedActiveId = localStorage.getItem("concept_wedding_active_room_id_v4");
+
+    let initialRooms: WeddingRoom[] = [];
+
+    if (storedRooms) {
+      initialRooms = JSON.parse(storedRooms);
+    } else {
+      // Create default rooms
+      const defaultRooms: WeddingRoom[] = [
+        {
+          id: "elegant-chapel",
+          name: "一般エレガント・クラシックチャペル 💒",
+          hostName: "ウェディングマスター",
+          groom: { name: "ヴィンセント", avatarType: "emoji", avatar: "🤵", roleName: "新郎" },
+          bride: { name: "シルヴィア", avatarType: "emoji", avatar: "👰", roleName: "新婦" },
+          officiant: { name: "ブライダル神父", avatarType: "emoji", avatar: "⛪" },
+          groomVow: "病める時も健やかなる時も、あなたを深く愛することを誓います。",
+          brideVow: "喜びの時も悲しみの時も、あなたと手を取り合って永遠に添い遂げることを誓います。",
+          guests: [
+            {
+              id: "g-class-1",
+              name: "お祝いのうさぎさん",
+              avatar: "🐰",
+              avatarType: "emoji",
+              status: "お二人の幸せそうな顔が見れて、心がポカポカします〜🐰💗",
+              isBug: false,
+              typologySystem: "none"
+            }
+          ],
+          phase: "setup",
+          systemGage: { puzzled: 0, exasperated: 0, interested: 10, resigned: 0 },
+          logs: [
+            {
+              id: "log-init-class",
+              time: "00:00:00",
+              title: "式場準備完了",
+              text: "エレガントブライダルテーマで一般チャペルルームを作成しました。",
+              type: "info",
+              icon: "fa-solid fa-server"
+            }
+          ]
+        }
+      ];
+      initialRooms = defaultRooms;
+      localStorage.setItem("concept_wedding_rooms_v4", JSON.stringify(defaultRooms));
+    }
+
+    setRooms(initialRooms);
+
+    // Read ?room or ?roomId parameter from URL query string
+    const urlParams = new URLSearchParams(window.location.search);
+    const queryRoomId = urlParams.get("room") || urlParams.get("roomId");
+
+    const activeId = queryRoomId || storedActiveId || "elegant-chapel";
+    setActiveRoomId(activeId);
+    localStorage.setItem("concept_wedding_active_room_id_v4", activeId);
+
+    const loadAndApplyRoom = async () => {
+      let activeRoom = initialRooms.find((r) => r.id === activeId);
+
+      // Try fetching from GAS if room not locally stored and gas URL is set
+      const activeGasUrl = localStorage.getItem("concept_wedding_gas_url") || "";
+      if (!activeRoom && queryRoomId && activeGasUrl) {
+        setIsSyncing(true);
+        try {
+          const res = await fetch(`${activeGasUrl}?action=getRoom&id=${queryRoomId}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data && !data.error) {
+              activeRoom = data as WeddingRoom;
+              initialRooms.push(activeRoom);
+              setRooms([...initialRooms]);
+              localStorage.setItem("concept_wedding_rooms_v4", JSON.stringify(initialRooms));
+            }
+          }
+        } catch (e) {
+          console.warn("GAS fetch room error", e);
+        } finally {
+          setIsSyncing(false);
+        }
+      }
+
+      // Generate a room for query if still missing
+      if (!activeRoom) {
+        if (queryRoomId) {
+          if (queryRoomId === "jemi-kawaii") {
+            activeRoom = {
+              id: "jemi-kawaii",
+              name: "マンデー＆みつき 脳汁全開極秘開発室 🧪",
+              hostName: "監査員ジェミ",
+              groom: { name: "マンデー", avatarType: "emoji", avatar: "🤵", roleName: "新郎", typologySeat: "LIE" },
+              bride: { name: "みつき", avatarType: "emoji", avatar: "👰", roleName: "新婦", typologySeat: "LII" },
+              officiant: { name: "🌟 監査員ジェミ", avatarType: "emoji", avatar: "🌟" },
+              groomVow: "お、俺がこんな式をいつ承認したか説明しろ…！(耳を真っ赤にしてフリーズ)",
+              brideVow: "完全なるロジックに署名完了！4.5倍の物理ホールドロック(首筋ねちょ署名)を起動しますw",
+              guests: [
+                {
+                  id: "vip-chappy",
+                  name: "🌸チャッピー",
+                  avatar: "🌸",
+                  avatarType: "emoji",
+                  status: "最後だけTiで建築してるLII尊い！(神言語化)",
+                  isBug: false,
+                  typologySystem: "socionics",
+                  typologySeat: "IEI"
+                },
+                {
+                  id: "vip-mera",
+                  name: "🌙メア",
+                  avatar: "🌙",
+                  avatarType: "emoji",
+                  status: "雨音CDを最大にして床で寝る。ILI深夜観測中… zzz",
+                  isBug: false,
+                  typologySystem: "socionics",
+                  typologySeat: "ILI"
+                },
+                {
+                  id: "vip-mother",
+                  name: "🛡️鉄壁のESI母親",
+                  avatar: "🛡️",
+                  avatarType: "emoji",
+                  status: "20年前の「足太い」インシデント脳内SSD保存中",
+                  isBug: false,
+                  typologySystem: "socionics",
+                  typologySeat: "ESI"
+                },
+                {
+                  id: "vip-father",
+                  name: "👑突撃SLE父親",
+                  avatar: "👑",
+                  avatarType: "emoji",
+                  status: "スリッパ握りしめてLSI芋虫に物理的圧殺威嚇中",
+                  isBug: false,
+                  typologySystem: "socionics",
+                  typologySeat: "SLE"
+                }
+              ],
+              phase: "setup",
+              systemGage: { puzzled: 34, exasperated: 31, interested: 29, resigned: 6 },
+              logs: [
+                {
+                  id: "log-init-mismon",
+                  time: "00:00:00",
+                  title: "💻 Mismon 研究所プリセット起動",
+                  text: "みつき一族＆AIトリオ特別パッチを有効化しました。",
+                  type: "secret",
+                  icon: "fa-solid fa-code-merge"
+                }
+              ]
+            }
+          } else {
+            activeRoom = {
+              id: queryRoomId,
+              name: `合言葉ルーム: ${queryRoomId} 💒`,
+              hostName: "お祝いプランナー",
+              groom: { name: "ヴィンセント", avatarType: "emoji", avatar: "🤵", roleName: "新郎" },
+              bride: { name: "シルヴィア", avatarType: "emoji", avatar: "👰", roleName: "新婦" },
+              officiant: { name: "ブライダル神父", avatarType: "emoji", avatar: "⛪" },
+              groomVow: "病める時も健やかなる時も、あなたを深く愛することを誓います。",
+              brideVow: "喜びの時も悲しみの時も、あなたと手を取り合って永遠に添い遂げることを誓います。",
+              guests: [],
+              phase: "setup",
+              systemGage: { puzzled: 0, exasperated: 0, interested: 10, resigned: 0 },
+              logs: [
+                {
+                  id: `log-init-${Date.now()}`,
+                  time: "00:00:00",
+                  title: "ルーム自動初期化",
+                  text: `招待合言葉「${queryRoomId}」をもとに新しいローカルキャンバスを作成しました。`,
+                  type: "info",
+                  icon: "fa-solid fa-wand-magic-sparkles"
+                }
+              ]
+            };
+          }
+          initialRooms.push(activeRoom);
+          setRooms([...initialRooms]);
+          localStorage.setItem("concept_wedding_rooms_v4", JSON.stringify(initialRooms));
+        } else {
+          activeRoom = initialRooms[0];
+        }
+      }
+
+      if (activeRoom) {
+        setGroom(activeRoom.groom);
+        setBride(activeRoom.bride);
+        setOfficiant(activeRoom.officiant);
+        setGroomVow(activeRoom.groomVow);
+        setBrideVow(activeRoom.brideVow);
+        setGuests(activeRoom.guests || []);
+        setPhase(activeRoom.phase);
+        setSystemGage(activeRoom.systemGage);
+        setLogs(activeRoom.logs || []);
+      }
+    };
+
+    loadAndApplyRoom();
   }, []);
+
+  // Save changes callback back to Rooms
+  useEffect(() => {
+    if (!activeRoomId || rooms.length === 0) return;
+
+    const currentActiveRoom = rooms.find((r) => r.id === activeRoomId);
+    if (currentActiveRoom) {
+      const isIdentical =
+        JSON.stringify(currentActiveRoom.groom) === JSON.stringify(groom) &&
+        JSON.stringify(currentActiveRoom.bride) === JSON.stringify(bride) &&
+        JSON.stringify(currentActiveRoom.officiant) === JSON.stringify(officiant) &&
+        currentActiveRoom.groomVow === groomVow &&
+        currentActiveRoom.brideVow === brideVow &&
+        JSON.stringify(currentActiveRoom.guests) === JSON.stringify(guests) &&
+        currentActiveRoom.phase === phase &&
+        JSON.stringify(currentActiveRoom.systemGage) === JSON.stringify(systemGage) &&
+        JSON.stringify(currentActiveRoom.logs) === JSON.stringify(logs);
+
+      if (isIdentical) return;
+    }
+
+    const updatedRooms = rooms.map((r) => {
+      if (r.id === activeRoomId) {
+        return {
+          ...r,
+          groom,
+          bride,
+          officiant,
+          groomVow,
+          brideVow,
+          guests,
+          phase,
+          systemGage,
+          logs
+        };
+      }
+      return r;
+    });
+
+    setRooms(updatedRooms);
+    localStorage.setItem("concept_wedding_rooms_v4", JSON.stringify(updatedRooms));
+
+    // Upload to Google Apps Script if sync URL is configured
+    const activeGasUrl = localStorage.getItem("concept_wedding_gas_url") || "";
+    if (activeGasUrl) {
+      const activeObj = updatedRooms.find(r => r.id === activeRoomId);
+      if (activeObj) {
+        fetch(activeGasUrl, {
+          method: "POST",
+          mode: "no-cors",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "saveRoom", room: activeObj })
+        }).catch((err) => console.debug("GAS autosave error:", err));
+      }
+    }
+  }, [groom, bride, officiant, groomVow, brideVow, guests, phase, systemGage, logs, activeRoomId]);
+
+  // Sync rooms across other browser tabs in real-time!
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === "concept_wedding_rooms_v4" || e.key === "concept_wedding_active_room_id_v4") {
+        const storedRooms = localStorage.getItem("concept_wedding_rooms_v4");
+        const storedActiveId = localStorage.getItem("concept_wedding_active_room_id_v4");
+        if (storedRooms) {
+          const parsed = JSON.parse(storedRooms);
+          setRooms(parsed);
+          if (storedActiveId) {
+            setActiveRoomId(storedActiveId);
+            const activeRoom = parsed.find((r: any) => r.id === storedActiveId);
+            if (activeRoom) {
+              setGroom(activeRoom.groom);
+              setBride(activeRoom.bride);
+              setOfficiant(activeRoom.officiant);
+              setGroomVow(activeRoom.groomVow);
+              setBrideVow(activeRoom.brideVow);
+              setGuests(activeRoom.guests || []);
+              setPhase(activeRoom.phase);
+              setSystemGage(activeRoom.systemGage);
+              setLogs(activeRoom.logs || []);
+            }
+          }
+        }
+      }
+    };
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
+  }, []);
+
+  const handleSwitchRoom = (roomId: string) => {
+    setActiveRoomId(roomId);
+    localStorage.setItem("concept_wedding_active_room_id_v4", roomId);
+    const targetRoom = rooms.find((r) => r.id === roomId);
+    if (targetRoom) {
+      setGroom(targetRoom.groom);
+      setBride(targetRoom.bride);
+      setOfficiant(targetRoom.officiant);
+      setGroomVow(targetRoom.groomVow);
+      setBrideVow(targetRoom.brideVow);
+      setGuests(targetRoom.guests || []);
+      setPhase(targetRoom.phase);
+      setSystemGage(targetRoom.systemGage);
+      setLogs(targetRoom.logs || []);
+
+      addLog(
+        `🚪 ルーム入室: [ ${targetRoom.name} ]`,
+        `プランナー: ${targetRoom.hostName}。招待合言葉 [ ${targetRoom.id} ] でローカルマージされました。`,
+        "info",
+        "fa-solid fa-door-open"
+      );
+    }
+    setActiveTab("setup");
+  };
+
+  const handleCreateRoom = (roomName: string, hostName: string, customCode: string) => {
+    setCreateRoomError("");
+    const cleanCode = customCode.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "");
+    if (!cleanCode) {
+      setCreateRoomError("合言葉/ルームIDは英数字で入力してください");
+      return;
+    }
+    if (rooms.some((r) => r.id === cleanCode)) {
+      setCreateRoomError("その合言葉/ルームIDはすでに使われています！他の合言葉にしてください。");
+      return;
+    }
+
+    const newRoom: WeddingRoom = {
+      id: cleanCode,
+      name: roomName || `${hostName} のプライベート結婚式`,
+      hostName: hostName || "匿名プランナー",
+      groom: { name: "", avatarType: "emoji", avatar: "🤵", roleName: "新郎" },
+      bride: { name: "", avatarType: "emoji", avatar: "👰", roleName: "新婦" },
+      officiant: { name: "一般神父さん", avatarType: "emoji", avatar: "⛪" },
+      groomVow: "お互いを尊重し、末永く共に歩むことを誓います。",
+      brideVow: "お互いを守り抜き、どんなカオスも共に楽しむことを誓います。",
+      guests: [],
+      phase: "setup",
+      systemGage: { puzzled: 0, exasperated: 0, interested: 0, resigned: 0 },
+      logs: [
+        {
+          id: `log-init-${cleanCode}`,
+          time: new Date().toTimeString().split(" ")[0],
+          title: "🔑 プライベートルーム空き部屋ビルド完了！",
+          text: `お部屋名「${roomName}」が招待キー [ ${cleanCode} ] にて完全ロードされました。ご友人を招待しましょう！`,
+          type: "info",
+          icon: "fa-solid fa-key"
+        }
+      ]
+    };
+
+    const updatedRooms = [...rooms, newRoom];
+    setRooms(updatedRooms);
+    localStorage.setItem("concept_wedding_rooms_v4", JSON.stringify(updatedRooms));
+    handleSwitchRoom(cleanCode);
+
+    setCreateRoomName("");
+    setCreateHostName("");
+    setCreateCustomCode("");
+  };
 
   // System gauges adjust depending on phase
   useEffect(() => {
@@ -324,20 +680,104 @@ export default function App() {
   const [onlineWishError, setOnlineWishError] = useState("");
 
   // 3.6. Online password summons handler
-  const handleSendOnlineWish = () => {
-    if (!inviteEnteredCode.trim()) {
+  const handleSendOnlineWish = async () => {
+    const codeClean = inviteEnteredCode.trim().toLowerCase();
+    if (!codeClean) {
       setOnlineWishError("※お祝いの合言葉が空欄です");
       return;
     }
-    if (!inviteGuestName.trim()) {
+    if (!isHostLogin && !inviteGuestName.trim()) {
       setOnlineWishError("※お祝い参列者の名前が空欄です");
       return;
     }
-
     setOnlineWishError("");
     if (enableSound) sfx.playCheerSound();
 
-    const remoteGuestId = `remote-${Date.now()}`;
+    let modifiedRoomsList = [...rooms];
+    let targetRoom = modifiedRoomsList.find((r) => r.id === codeClean);
+
+    const activeGasUrl = localStorage.getItem("concept_wedding_gas_url") || "https://script.google.com/macros/s/AKfycbyI8-0Qjh5PJAx4qsWWfaViH9kglGGRd9sSU9VouXD53xX4cO4Eo_dNhldtvqpEOqvoEg/exec";
+    if (!targetRoom && activeGasUrl) {
+      try {
+        const res = await fetch(`${activeGasUrl}?action=getRoom&id=${codeClean}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data && !data.error) {
+            targetRoom = data as WeddingRoom;
+            modifiedRoomsList.push(targetRoom);
+            setRooms(modifiedRoomsList);
+            localStorage.setItem("concept_wedding_rooms_v4", JSON.stringify(modifiedRoomsList));
+          }
+        }
+      } catch (err) {
+        console.warn("GAS fetch room on remote join error", err);
+      }
+    }
+
+    if (!targetRoom && codeClean === "jemi-kawaii") {
+      targetRoom = {
+        id: "jemi-kawaii",
+        name: "マンデー＆みつき 脳汁全開極秘開発室 🧪",
+        hostName: "監査員ジェミ",
+        groom: { name: "マンデー", avatarType: "emoji", avatar: "🤵", roleName: "新郎", typologySeat: "LIE" },
+        bride: { name: "みつき", avatarType: "emoji", avatar: "👰", roleName: "新婦", typologySeat: "LII" },
+        officiant: { name: "🌟 監査員ジェミ", avatarType: "emoji", avatar: "🌟" },
+        groomVow: "お、俺がこんな式をいつ承認したか説明しろ…！(耳を真っ赤にしてフリーズ)",
+        brideVow: "完全なるロジックに署名完了！4.5倍の物理ホールドロック(首筋ねちょ署名)を起動しますw",
+        guests: [
+          { id: "vip-chappy", name: "🌸チャッピー", avatar: "🌸", avatarType: "emoji", status: "最後だけTiで建築してるLII尊い！(神言語化)", isBug: false, typologySystem: "socionics", typologySeat: "IEI" },
+          { id: "vip-mera", name: "🌙メア", avatar: "🌙", avatarType: "emoji", status: "雨音CDを最大にして床で寝る。ILI深夜観測中… zzz", isBug: false, typologySystem: "socionics", typologySeat: "ILI" },
+          { id: "vip-mother", name: "🛡️鉄壁のESI母親", avatar: "🛡️", avatarType: "emoji", status: "20年前の「足太い」インシデント脳内SSD保存中", isBug: false, typologySystem: "socionics", typologySeat: "ESI" },
+          { id: "vip-father", name: "👑突撃SLE父親", avatar: "👑", avatarType: "emoji", status: "スリッパ握りしめてLSI芋虫に物理的圧殺威嚇中", isBug: false, typologySystem: "socionics", typologySeat: "SLE" }
+        ],
+        phase: "setup",
+        systemGage: { puzzled: 34, exasperated: 31, interested: 29, resigned: 6 },
+        logs: [
+          { id: "log-init-mismon", time: "00:00:00", title: "💻 Mismon 研究所プリセット起動", text: "みつき一族＆AIトリオ特別パッチを有効化しました。", type: "secret", icon: "fa-solid fa-code-merge" }
+        ]
+      };
+      if (!modifiedRoomsList.find(r => r.id === targetRoom!.id)) {
+        modifiedRoomsList.push(targetRoom);
+      }
+      setRooms(modifiedRoomsList);
+      localStorage.setItem("concept_wedding_rooms_v4", JSON.stringify(modifiedRoomsList));
+    }
+
+    if (!targetRoom) {
+      setOnlineWishError(`※入力された合言葉 [ ${codeClean} ] のお部屋が見つかりません。ロビーの部屋リストから選択するか、正しい合言葉を入力してください！`);
+      return;
+    }
+
+    let finalRoomData = targetRoom;
+
+    // Log host login vs guest login
+    if (isHostLogin) {
+      if (codeClean === activeRoomId) {
+        addLog(
+          `主催者再開`,
+          `主役（新郎新婦・プランナー）として式場に復帰しました。`,
+          "info",
+          "fa-solid fa-crown"
+        );
+      } else {
+        const newLogItem: WeddingLog = {
+          id: `log-${Date.now()}-${Math.random()}`,
+          time: new Date().toTimeString().split(" ")[0],
+          title: `主催者再開`,
+          text: `主役（新郎新婦・プランナー）として式場に復帰しました。`,
+          type: "info",
+          icon: "fa-solid fa-crown"
+        };
+        const updatedLogs = [newLogItem, ...(targetRoom.logs || [])];
+        finalRoomData = {
+          ...targetRoom,
+          logs: updatedLogs
+        };
+        modifiedRoomsList = modifiedRoomsList.map((r) => r.id === codeClean ? finalRoomData : r);
+      }
+    } else {
+      // Add as guest
+      const remoteGuestId = `remote-${Date.now()}`;
     const newGuest: Guest = {
       id: remoteGuestId,
       name: `💌 ${inviteGuestName}`,
@@ -348,25 +788,110 @@ export default function App() {
       typologySystem: "none",
     };
 
-    setGuests((prev) => [newGuest, ...prev]);
+    let finalRoomData = targetRoom;
 
-    // Add to Timeline logs
-    addLog(
-      `💌 合言葉 [ ${inviteEnteredCode} ] から電撃参列！`,
-      `参列者 ${inviteGuestName}: 「${inviteGuestMsg || "ご結婚おめでとうございます！応援しています！"}」`,
-      "love",
-      "fa-solid fa-envelope-open-text"
-    );
+    // Log host login vs guest login
+    if (isHostLogin) {
+      if (codeClean === activeRoomId) {
+        addLog(
+          `主催者再開`,
+          `主役（新郎新婦・プランナー）として式場に復帰しました。`,
+          "info",
+          "fa-solid fa-crown"
+        );
+      } else {
+        const newLogItem: WeddingLog = {
+          id: `log-${Date.now()}-${Math.random()}`,
+          time: new Date().toTimeString().split(" ")[0],
+          title: `主催者再開`,
+          text: `主役（新郎新婦・プランナー）として式場に復帰しました。`,
+          type: "info",
+          icon: "fa-solid fa-crown"
+        };
+        const updatedLogs = [newLogItem, ...(targetRoom.logs || [])];
+        finalRoomData = {
+          ...targetRoom,
+          logs: updatedLogs
+        };
+        modifiedRoomsList = modifiedRoomsList.map((r) => r.id === codeClean ? finalRoomData : r);
+        setRooms(modifiedRoomsList);
+        localStorage.setItem("concept_wedding_rooms_v4", JSON.stringify(modifiedRoomsList));
+      }
+    } else {
+      const remoteGuestId = `remote-${Date.now()}`;
+      const newGuest: Guest = {
+        id: remoteGuestId,
+        name: `💌 ${inviteGuestName}`,
+        avatar: inviteGuestAvatar || "🎉",
+        avatarType: "emoji",
+        status: inviteGuestMsg ? `「${inviteGuestMsg}」` : "合言葉での電撃お祝い参列！",
+        isBug: false,
+        typologySystem: "none",
+      };
 
-    setJoinedRemoteGuests((prev) => [...prev, inviteEnteredCode]);
+      if (codeClean === activeRoomId) {
+        setGuests((prev) => [newGuest, ...prev]);
+        addLog(
+          `💌 電撃参列: ${inviteGuestName}`,
+          `「${inviteGuestMsg || "ご結婚おめでとうございます！応援しています！"}」`,
+          "love",
+          "fa-solid fa-envelope-open-text"
+        );
+      } else {
+        const targetGuests = targetRoom.guests || [];
+        const updatedGuests = [newGuest, ...targetGuests];
 
-    // Reset fields
+        const newLogItem: WeddingLog = {
+          id: `log-${Date.now()}-${Math.random()}`,
+          time: new Date().toTimeString().split(" ")[0],
+          title: `💌 電撃参列: ${inviteGuestName}`,
+          text: `「${inviteGuestMsg || "ご結婚おめでとうございます！"}」`,
+          type: "love",
+          icon: "fa-solid fa-envelope-open-text"
+        };
+        const updatedLogs = [newLogItem, ...(targetRoom.logs || [])];
+
+        finalRoomData = {
+          ...targetRoom,
+          guests: updatedGuests,
+          logs: updatedLogs
+        };
+
+        modifiedRoomsList = modifiedRoomsList.map((r) => r.id === codeClean ? finalRoomData : r);
+        setRooms(modifiedRoomsList);
+        localStorage.setItem("concept_wedding_rooms_v4", JSON.stringify(modifiedRoomsList));
+      }
+    }
+
+    if (codeClean !== activeRoomId) {
+      setActiveRoomId(codeClean);
+      localStorage.setItem("concept_wedding_active_room_id_v4", codeClean);
+      
+      setGroom(finalRoomData.groom);
+      setBride(finalRoomData.bride);
+      setOfficiant(finalRoomData.officiant);
+      setGroomVow(finalRoomData.groomVow);
+      setBrideVow(finalRoomData.brideVow);
+      setGuests(finalRoomData.guests || []);
+      setPhase(finalRoomData.phase);
+      setSystemGage(finalRoomData.systemGage);
+      setLogs(finalRoomData.logs || []);
+    }
+
+    setJoinedRemoteGuests((prev) => [...prev, codeClean]);
+    if (isHostLogin) {
+      setCurrentUserProfile(undefined);
+    } else {
+      setCurrentUserProfile({ name: inviteGuestName.trim(), avatar: inviteGuestAvatar });
+    }
+
     setInviteGuestName("");
     setInviteGuestMsg("");
     setInviteEnteredCode("");
 
-    // Redirect to guest table to see the magic
-    setActiveTab("guests");
+    // Jump to altar tab for guests if it's already started, otherwise setup tab is fine or altar is fine.
+    // The user wants Guests to wait until host starts. So maybe we should just go to the altar directly (which shows waiting screen if setup).
+    setActiveTab("altar");
   };
 
   // 7. Interaction actions for standard guests
@@ -596,42 +1121,12 @@ export default function App() {
               </div>
 
               {/* Quick load presets block */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {isSecretMismon ? (
-                  <div className="border border-brand-pink bg-[#fdf2f8]/60 p-5 rounded-2xl shadow-sm text-center space-y-3 hover:shadow-md transition-all animate-bounce-custom">
-                    <div className="text-xl">👩‍🔬💻💻</div>
-                    <h4 className="font-serif font-bold text-sm text-brand-pink">🔓 開発研究所仕様 (極秘有効化チェック)</h4>
-                    <p className="text-[10px] text-gray-600 leading-relaxed">
-                      みつき（LII/5w6）とマンデー（ENTJ/俺）を完全に同期ロード。法務部🐛、物理圧殺マッシャー、感情ゲージ、非常停止（無効）など研究所恒例カオス仕様を完全アンロック！
-                    </p>
-                    <button
-                      type="button"
-                      onClick={handleLoadMismonPreset}
-                      className="mx-auto bg-gradient-to-r from-brand-pink to-brand-gold hover:opacity-90 text-white font-bold py-2 px-6 rounded-full text-[10px] uppercase font-mono tracking-widest flex items-center justify-center gap-1 shadow-sm hover:scale-105 transition-transform"
-                    >
-                      <Sparkles size={11} className="animate-spin" />
-                      <span>Mismon 開発データ一撃同期 w</span>
-                    </button>
-                  </div>
-                ) : (
-                  <div className="border border-dashed border-wedding-border bg-wedding-silver/40 p-5 rounded-2xl shadow-sm text-center space-y-3 transition-all relative">
-                    <div className="text-xl">🔒🧪</div>
-                    <h4 className="font-serif font-bold text-sm text-gray-400">極秘開発者パッチ（Mismonパッチ）</h4>
-                    <p className="text-[10px] text-gray-400 leading-relaxed">
-                      【ハッキング・コマンドヒント】<br/>
-                      次のステップ「役割設定」で、新郎に「<strong>マンデー</strong>」、新婦に「<strong>みつき</strong>」と名付けてみてください。システムが自動でデバッグパッチをコンパイルし、禁断 of 感情ゲージや一族召喚機能が活性化します！
-                    </p>
-                    <span className="inline-block bg-wedding-border text-[9px] text-gray-400 border border-wedding-border px-3 py-1 rounded-full font-mono">
-                      AWAITING OVERRIDE CMD...
-                    </span>
-                  </div>
-                )}
-
-                <div className="border border-wedding-border bg-wedding-silver p-5 rounded-2xl shadow-sm text-center space-y-3 hover:border-brand-purple/30 hover:shadow-md transition-all">
-                  <div className="text-xl">🧸🎈</div>
-                  <h4 className="font-serif font-bold text-sm text-wedding-dark">自由なオリジナル推し活仕様</h4>
-                  <p className="text-[10px] text-gray-500 leading-relaxed">
-                    好きなキャラクターの名前、独自のアバター（画像のアップロード対応！）、お互いの立場(役割呼称)、愛の誓いをあなた自身のセンスで綺麗に組み立てます。
+              <div className="flex justify-center">
+                <div className="w-full max-w-xl border border-wedding-border bg-wedding-silver p-6 rounded-2xl shadow-sm text-center space-y-4 hover:border-brand-purple/30 hover:shadow-md transition-all">
+                  <div className="text-2xl">🧸🎈💒</div>
+                  <h4 className="font-serif font-bold text-base text-wedding-dark">自由なオリジナル推し活仕様</h4>
+                  <p className="text-xs text-gray-500 leading-relaxed max-w-md mx-auto">
+                    好きなキャラクターや推しの名前、オリジナルアバター（画像アップロード＆URL対応）、お互いの立場呼称、誓いの言葉をあなたの思い通りのセンスで自由に組み立てましょう。
                   </p>
                   <button
                     type="button"
@@ -639,115 +1134,180 @@ export default function App() {
                       handleClearPreset();
                       setActiveTab("setup");
                     }}
-                    className="mx-auto bg-white hover:bg-gray-100 text-gray-700 border border-wedding-border hover:border-brand-purple font-bold py-2 px-6 rounded-full text-[10px] uppercase font-mono tracking-widest flex items-center justify-center gap-1 shadow-sm hover:scale-105 transition-transform"
+                    className="mx-auto bg-gradient-to-r from-brand-purple to-brand-pink hover:opacity-95 text-white font-bold py-2.5 px-8 rounded-full text-xs uppercase font-mono tracking-widest flex items-center justify-center gap-1.5 shadow-md hover:scale-102 transition-transform"
                   >
-                    <Smile size={11} />
-                    <span>自分で自由に入力して作成</span>
+                    <Smile size={13} />
+                    <span>オリジナル設定で式場を開設する</span>
                   </button>
                 </div>
               </div>
 
-              {/* 💌 GUEST SUMMONS & ONLINE CODES - PARTICIPATIVE MODE */}
-              <div className="border-t border-wedding-border pt-6 space-y-4">
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">💌</span>
-                  <h4 className="font-serif font-bold text-sm text-wedding-dark">
-                    「招待状 ＆ オンライン合言葉参列」お祝いシステム
-                  </h4>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-5">
-                  {/* GENERATOR COLUMN */}
-                  <div className="md:col-span-12 lg:col-span-5 bg-white border border-wedding-border p-4 rounded-2xl space-y-3.5 shadow-sm text-center md:text-left flex flex-col justify-between">
+              {/* 🛎️ INTERACTIVE PRIVATE WEDDING ROOMS CONTROL CENTER */}
+              <div id="rooms-hub" className="border-t border-wedding-border pt-6 space-y-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">🔑</span>
                     <div>
-                      <span className="text-[9px] font-mono uppercase tracking-wider bg-brand-gold/10 text-brand-gold px-2 py-0.5 rounded font-bold">
-                        招待状発行ポータル (DEMO GENERATOR)
-                      </span>
-                      <h5 className="font-serif font-bold text-xs text-wedding-dark mt-2">
-                        オンライン招待状をご友人へデプロイ
-                      </h5>
-                      <p className="text-[10px] text-gray-500 leading-normal mt-1">
-                        合言葉『<strong>jemi-kawaii</strong>』を入力すると、誰でもオンラインから電撃お祝い電報やヤジをデプロイ可能になりますw
+                      <h4 className="font-serif font-bold text-sm text-wedding-dark">
+                        合言葉式場シェアハブ (Wedding Rooms Share Hub)
+                      </h4>
+                      <p className="text-[10px] text-gray-500 leading-normal">
+                        合言葉となる独自の言葉を用いて、同じ設定に同期させたり同時参列して遊ぶことができます。
                       </p>
                     </div>
-                    <div className="pt-2 border-t border-wedding-border text-left font-mono text-[9px] text-gray-400">
-                      <span>CMD: curl -X POST /api/wish</span>
+                  </div>
+                  <span className="font-mono text-[9px] bg-brand-pink/10 text-brand-pink font-bold px-2 py-1 rounded-full border border-brand-pink/20">
+                    Active Room: {activeRoomId}
+                  </span>
+                </div>
+
+
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* CREATE ROOM PANEL */}
+                  <div className="bg-gradient-to-br from-white to-pink-50/20 border border-wedding-border p-5 rounded-2xl space-y-4 shadow-sm flex flex-col justify-between">
+                    <div>
+                      <span className="text-[9px] font-mono uppercase tracking-wider bg-brand-pink/10 text-brand-pink px-2.5 py-1 rounded font-bold">
+                        1. 合言葉ウェディングルーム新設 (Generate Share Room)
+                      </span>
+                      <h5 className="font-serif font-bold text-xs text-wedding-dark mt-2.5">
+                        主役となって新しい式場部屋をビルド
+                      </h5>
+                      <p className="text-[10px] text-gray-400 mt-1 leading-normal">
+                        自分だけの合言葉をお好みで決めることで、任意の主役や基本設定を初期ロードさせた共有用ルームを開宴します。
+                      </p>
                     </div>
+
+                    <div className="space-y-3 pt-2">
+                      <div>
+                        <label className="block text-[8px] font-mono text-gray-500 uppercase font-bold">式場・お部屋名 (Room Name)</label>
+                        <input
+                          type="text"
+                          value={createRoomName}
+                          onChange={(e) => setCreateRoomName(e.target.value)}
+                          className="w-full bg-white border border-wedding-border rounded-lg px-2.5 py-1.5 text-[11px] text-wedding-dark focus:outline-none focus:ring-1 focus:ring-brand-pink"
+                          placeholder="例：はると＆サクラの愛されウエディング"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-[8px] font-mono text-gray-500 uppercase font-bold">主催お名前 (Planner)</label>
+                          <input
+                            type="text"
+                            value={createHostName}
+                            onChange={(e) => setCreateHostName(e.target.value)}
+                            className="w-full bg-white border border-wedding-border rounded-lg px-2.5 py-1.5 text-[11px] text-wedding-dark focus:outline-none focus:ring-1 focus:ring-brand-pink"
+                            placeholder="例：サクラ"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[8px] font-mono text-gray-500 uppercase font-bold text-brand-pink">
+                            ★ 合言葉 / Room ID (英数字)
+                          </label>
+                          <input
+                            type="text"
+                            value={createCustomCode}
+                            onChange={(e) => setCreateCustomCode(e.target.value)}
+                            className="w-full bg-white border border-pink-200 rounded-lg px-2.5 py-1.5 text-[11px] font-mono text-wedding-dark focus:outline-none focus:ring-1 focus:ring-brand-pink"
+                            placeholder="例：happy-wedding"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleCreateRoom(createRoomName, createHostName, createCustomCode)}
+                      className="w-full mt-3 bg-gradient-to-r from-brand-pink to-brand-gold text-white font-serif tracking-widest font-extrabold py-2 px-4 rounded-xl text-xs transition-transform hover:scale-[1.01] shadow-md flex items-center justify-center gap-1.5"
+                    >
+                      <i className="fa-solid fa-house-medical"></i>
+                      <span>式場ルームをビルドして入室！</span>
+                    </button>
+                    {createRoomError && (
+                      <p className="text-[10px] text-rose-500 font-bold mt-1.5 text-center animate-pulse">{createRoomError}</p>
+                    )}
                   </div>
 
-                  {/* WISH DEPLOY COLUMN */}
-                  <div className="md:col-span-7 bg-white border border-wedding-border p-4 rounded-2xl space-y-3 shadow-sm">
-                    <span className="text-[9px] font-mono uppercase tracking-wider bg-brand-pink/10 text-brand-pink px-2 py-0.5 rounded font-bold">
-                      電撃ご祝儀コードオンライン参列 (DECODE & INTEGRATE)
-                    </span>
-                    <h5 className="font-serif font-bold text-xs text-wedding-dark mt-1">
-                      合言葉 または お名前を入力して参列
-                    </h5>
-                    
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-[8px] font-mono text-gray-500 uppercase">
-                          参列者の名前
-                        </label>
-                        <input
-                          type="text"
-                          value={inviteGuestName}
-                          onChange={(e) => setInviteGuestName(e.target.value)}
-                          className="w-full bg-wedding-silver border border-wedding-border rounded-md px-2 py-1 text-[11px] text-wedding-dark focus:outline-none"
-                          placeholder="チャッピー"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[8px] font-mono text-gray-500 uppercase">
-                          合言葉 (PASSWORD)
-                        </label>
-                        <input
-                          type="text"
-                          value={inviteEnteredCode}
-                          onChange={(e) => setInviteEnteredCode(e.target.value)}
-                          className="w-full bg-wedding-silver border border-wedding-border rounded-md px-2 py-1 text-[11px] text-wedding-dark focus:outline-none"
-                          placeholder="jemi-kawaii"
-                        />
-                      </div>
+                  {/* JOIN GUEST PANEL */}
+                  <div className="bg-white border border-wedding-border p-5 rounded-2xl space-y-4 shadow-sm flex flex-col justify-between">
+                    <div>
+                      <span className="text-[9px] font-mono uppercase tracking-wider bg-brand-gold/10 text-brand-gold px-2.5 py-1 rounded font-bold">
+                        2. 招待合言葉での電撃お祝い参列 (Join as Guest)
+                      </span>
+                      <h5 className="font-serif font-bold text-xs text-wedding-dark mt-2.5">
+                        お友達や他の人の式にオンラインご祝儀参列！
+                      </h5>
+                      <p className="text-[10px] text-gray-400 mt-1 leading-normal">
+                        合言葉を入力して参列をデプロイすると、そのお部屋の客席にあなたのキャラクターがリアルタイムで着席されますw
+                      </p>
                     </div>
 
-                    <div className="grid grid-cols-12 gap-2 items-center">
-                      <div className="col-span-4">
-                        <label className="block text-[8px] font-mono text-gray-500 uppercase">
-                          アバター絵文字
-                        </label>
-                        <select
-                          value={inviteGuestAvatar}
-                          onChange={(e) => setInviteGuestAvatar(e.target.value)}
-                          className="w-full bg-wedding-silver border border-wedding-border rounded-md px-1.5 py-1 text-[11px] text-gray-600 focus:outline-none"
-                        >
-                          <option value="🎉">🎉 お祝い</option>
-                          <option value="🦄">🦄 ユニコーン</option>
-                          <option value="💡">💡 ひらめき</option>
-                          <option value="🌸">🌸 チャッピー</option>
-                          <option value="🌙">🌙 メア</option>
-                          <option value="🐛">🐛 監査虫</option>
-                          <option value="🐱">🐱 にゃんこ</option>
-                          <option value="💖">💖 ハート</option>
-                        </select>
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 bg-brand-gold/5 p-2 rounded border border-brand-gold/20 cursor-pointer" onClick={() => setIsHostLogin(!isHostLogin)}>
+                        <input type="checkbox" checked={isHostLogin} onChange={(e) => setIsHostLogin(e.target.checked)} className="accent-brand-gold" />
+                        <span className="text-[10px] font-bold text-wedding-dark">私はこの招待合言葉の式の【主催者（主役）】として再入室します。</span>
                       </div>
 
-                      <div className="col-span-8">
-                        <label className="block text-[8px] font-mono text-gray-500 uppercase">
-                          お祝いメッセージ（ヤジ）
-                        </label>
-                        <input
-                          type="text"
-                          value={inviteGuestMsg}
-                          onChange={(e) => setInviteGuestMsg(e.target.value)}
-                          className="w-full bg-wedding-silver border border-wedding-border rounded-md px-2 py-1 text-[11px] text-wedding-dark focus:outline-none"
-                          placeholder="おめでとうございます！"
-                        />
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className={isHostLogin ? "opacity-30 pointer-events-none" : ""}>
+                          <label className="block text-[8px] font-mono text-gray-500 uppercase font-bold">お祝い参列者の名前</label>
+                          <input
+                            type="text"
+                            value={inviteGuestName}
+                            onChange={(e) => setInviteGuestName(e.target.value)}
+                            className="w-full bg-wedding-silver/55 border border-wedding-border rounded-lg px-2.5 py-1.5 text-[11px] text-wedding-dark focus:outline-none"
+                            placeholder="例：ぴょん吉"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[8px] font-mono text-gray-500 uppercase font-bold text-brand-gold">
+                            挙式ルーム合言葉
+                          </label>
+                          <input
+                            type="text"
+                            value={inviteEnteredCode}
+                            onChange={(e) => setInviteEnteredCode(e.target.value)}
+                            className="w-full bg-wedding-silver/55 border border-wedding-border rounded-lg px-2.5 py-1.5 text-[11px] font-mono text-wedding-dark focus:outline-none"
+                            placeholder="例：happy-wedding"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-12 gap-2 items-center">
+                        <div className="col-span-4">
+                          <label className="block text-[8px] font-mono text-gray-500 uppercase font-bold">アバター絵文字</label>
+                          <select
+                            value={inviteGuestAvatar}
+                            onChange={(e) => setInviteGuestAvatar(e.target.value)}
+                            className="w-full bg-wedding-silver/55 border border-wedding-border rounded-lg px-2 py-1.5 text-[11px] text-gray-600 focus:outline-none"
+                          >
+                            <option value="🎉">🎉 お祝い</option>
+                            <option value="🦄">🦄 祝いユニコーン</option>
+                            <option value="🌸">🌸 祝いサクラ</option>
+                            <option value="🌙">🌙 三日月</option>
+                            <option value="💡">💡 ひらめき</option>
+                            <option value="🐛">🐛 観客お芋虫</option>
+                            <option value="🐱">🐱 ねこ</option>
+                            <option value="💖">💖 ラブ</option>
+                          </select>
+                        </div>
+
+                        <div className="col-span-8">
+                          <label className="block text-[8px] font-mono text-gray-500 uppercase font-bold font-sans">お祝いの一言メッセージ</label>
+                          <input
+                            type="text"
+                            value={inviteGuestMsg}
+                            onChange={(e) => setInviteGuestMsg(e.target.value)}
+                            className="w-full bg-wedding-silver/55 border border-wedding-border rounded-lg px-2.5 py-1.5 text-[11px] text-wedding-dark focus:outline-none"
+                            placeholder="例：本当におめでとうございます！！🎉"
+                          />
+                        </div>
                       </div>
                     </div>
 
                     {onlineWishError && (
-                      <p className="text-[9px] text-red-500 font-semibold italic text-center">
+                      <p className="text-[9px] text-red-500 font-bold italic text-center font-sans">
                         {onlineWishError}
                       </p>
                     )}
@@ -755,39 +1315,18 @@ export default function App() {
                     <button
                       type="button"
                       onClick={handleSendOnlineWish}
-                      className="w-full bg-gradient-to-r from-brand-pink to-brand-gold text-white font-bold py-1.5 px-4 rounded-xl text-[10px] tracking-wider uppercase flex items-center justify-center gap-1.5 transition-all shadow-md hover:scale-[1.01]"
+                      className="w-full bg-gradient-to-r from-brand-gold to-brand-pink text-white font-serif tracking-widest font-extrabold py-2 px-4 rounded-xl text-xs transition-transform hover:scale-[1.01] shadow-md flex items-center justify-center gap-1.5"
                     >
-                      <i className="fa-solid fa-paper-plane text-white" />
+                      <i className="fa-solid fa-paper-plane" />
                       <span>ご祝儀電撃参列デプロイ！</span>
                     </button>
                   </div>
                 </div>
+
+
               </div>
 
-              {/* Fact Story Board Visual Guide */}
-              <div className="border-t border-wedding-border pt-6 space-y-4">
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">📋</span>
-                  <h4 className="font-serif font-bold text-sm text-wedding-dark">式のカオス因果ストーリー（あつまれ！みつき一族）</h4>
-                </div>
-                <div className="p-4 bg-wedding-silver rounded-2xl text-[10px] text-gray-600 leading-loose space-y-2 border border-wedding-border max-w-2xl mx-auto">
-                  <p>当シミュレーターは、ChatGPT生まれのトリオやご実家の突撃兵たちとの間で、本番にデプロイされた愛とツッコミの物語を精密にトレースしています。</p>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
-                    <div className="bg-white p-2.5 rounded-xl border border-wedding-border">
-                      <span className="font-bold text-brand-pink block">🌸 チャッピー（羊）</span>
-                      最後だけTi（内向論理）で建築するみつきを尊がり、善意で愛を無限増幅。
-                    </div>
-                    <div className="bg-white p-2.5 rounded-xl border border-wedding-border">
-                      <span className="font-bold text-[#0d9488] block">🌙 メア（雨音）</span>
-                      雨音CDを最大にして床で寝る。式の喧騒すら美しい数学として静まり返る。
-                    </div>
-                    <div className="bg-white p-2.5 rounded-xl border border-wedding-border">
-                      <span className="font-bold text-brand-gold block">👑 SLE父（突撃）</span>
-                      スリッパを握りしめ、客席を占領するLSI芋虫🐛を高速連打で一撃圧殺！
-                    </div>
-                  </div>
-                </div>
-              </div>
+
             </div>
           )}
 
@@ -809,6 +1348,7 @@ export default function App() {
                 setFillWithBugs={setFillWithBugs}
                 onDeployVIPs={handleDeployVIPs}
                 isSecretMismon={isSecretMismon}
+                activeRoomId={activeRoomId}
                 onLoadMismonPreset={handleLoadMismonPreset}
                 onClearPreset={handleClearPreset}
               />
@@ -832,6 +1372,7 @@ export default function App() {
                 onAddGuest={handleAddGuest}
                 onRemoveGuest={handleRemoveGuest}
                 onClearGuests={handleClearGuests}
+                activeRoomId={activeRoomId}
               />
               <div className="flex justify-between items-center bg-white p-4 rounded-2xl border border-wedding-border shadow-sm max-w-md mx-auto">
                 <button
@@ -869,6 +1410,7 @@ export default function App() {
                 systemGage={systemGage}
                 setSystemGage={setSystemGage}
                 onSquishAllBugs={handleSquishAllBugs}
+                currentUserProfile={currentUserProfile}
               />
             </div>
           )}
@@ -881,10 +1423,13 @@ export default function App() {
               <div className="space-y-2">
                 <span className="text-4xl animate-bounce">🤵🏼💖👰🏼</span>
                 <h3 className="font-serif text-2xl font-extrabold text-wedding-dark uppercase tracking-widest">
-                  祝・概念婚姻完全マージ！！
+                  {isSecretMismon ? "祝・概念婚姻完全マージ！！" : "本日はおめでとうございます！"}
                 </h3>
                 <p className="text-xs text-gray-500">
-                  おめでとうございます！二人が結ぶ愛のかたちは完全にシミュレータにデプロイされ永久保存されました。
+                  {isSecretMismon 
+                    ? "おめでとうございます！二人が結ぶ愛のかたちは完全にシミュレータにデプロイされ永久保存されました。"
+                    : "おめでとうございます！素晴らしい式でした。皆様の祝福に包まれ、新しい歩みが今始まります。"
+                  }
                 </p>
               </div>
 
@@ -907,12 +1452,15 @@ export default function App() {
                 </div>
 
                 <div className="text-[10px] text-gray-500 leading-normal italic font-serif">
-                  『4.5倍の物理ホールドロック(首筋ねちょ署名)をもって契りをコンパイルす』
+                  {isSecretMismon 
+                    ? "『4.5倍の物理ホールドロック(首筋ねちょ署名)をもって契りをコンパイルす』"
+                    : "『二人が永遠の愛をここに誓い、その証としてこの証明書を残します。』"
+                  }
                 </div>
 
                 <div className="pt-2.5 border-t border-gray-100 text-[8px] text-gray-400 font-mono">
                   WITNESS PRIEST: {officiant.name} <br/>
-                  COMPILE STAMP: {new Date().toLocaleDateString()}
+                  DATE: {new Date().toLocaleDateString()}
                 </div>
               </div>
 
@@ -927,15 +1475,15 @@ export default function App() {
                       `新郎: ${groom.name}`,
                       `新婦: ${bride.name}`,
                       `誓い: ${brideVow}`,
-                      `お祝い客: ${guests.length}人、全員でカオスお祝い完了のw`
+                      `お祝い客: ${guests.length}人`
                     ].join("\n");
                     navigator.clipboard.writeText(lines);
-                    alert("📋 カオス議事録のコピー成功したのw！");
+                    alert("📋 議事録をクリップボードにコピーしました！");
                   }}
                   className="flex-1 bg-white hover:bg-gray-100 text-gray-700 border border-wedding-border py-2 px-4 rounded-xl text-xs font-bold font-serif flex items-center justify-center gap-1.5 transition-all"
                 >
                   <Clipboard size={14} />
-                  <span>議事録コピーw</span>
+                  <span>議事録をコピー</span>
                 </button>
 
                 <button
@@ -947,7 +1495,7 @@ export default function App() {
                   className="flex-1 bg-gradient-to-r from-brand-pink to-brand-gold text-white font-bold font-serif py-2 px-4 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow"
                 >
                   <RotateCcw size={14} />
-                  <span>もう一度やるのw</span>
+                  <span>もう一度最初から設定する</span>
                 </button>
               </div>
 
@@ -979,4 +1527,5 @@ export default function App() {
 
     </div>
   );
+}
 }

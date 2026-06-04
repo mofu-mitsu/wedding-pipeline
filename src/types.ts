@@ -8,6 +8,7 @@ export interface Character {
   avatarType: "emoji" | "url";
   avatar: string; // Emoji character or URL / base64 DataURL
   roleName?: string; // Custom title/role label e.g., "新郎", "新婦", "主役A", "魔王"
+  typologySeat?: string; // Groom/Bride typology / MBTI / Socionics!
 }
 
 export interface Officiant {
@@ -61,5 +62,22 @@ export type WeddingPhase =
   | "rings"      // "指輪の交換" (or 物理ホールドロック)
   | "applause"   // "拍手喝采"
   | "reception"  // 披露宴
-  | "completed"; // 式終了
+  | "completed"  // 式終了
+  | "afterparty"; // アフターパーティー
+
+export interface WeddingRoom {
+  id: string; // The Passcode / Room ID (e.g., "jemi-kawaii", "mitsu-mon")
+  name: string; // Room Name (e.g., "マンデー＆みつき 脳汁全開開発室")
+  hostName: string; // Creator name
+  groom: Character;
+  bride: Character;
+  officiant: Officiant;
+  groomVow: string;
+  brideVow: string;
+  guests: Guest[];
+  phase: WeddingPhase;
+  systemGage: SystemGage;
+  logs: WeddingLog[];
+}
+
 
