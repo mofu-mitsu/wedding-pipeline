@@ -24,6 +24,7 @@ interface StageProps {
   setSystemGage: (g: SystemGage) => void;
   onSquishAllBugs: () => void;
   currentUserProfile?: { name: string; avatar: string };
+  enableSound: boolean;
 }
 
 interface Particle {
@@ -50,6 +51,7 @@ export const CeremonyStage: React.FC<StageProps> = ({
   setSystemGage,
   onSquishAllBugs,
   currentUserProfile,
+  enableSound,
 }) => {
   const [particles, setParticles] = useState<Particle[]>([]);
   const [clickCount, setClickCount] = useState(0);
@@ -234,6 +236,13 @@ export const CeremonyStage: React.FC<StageProps> = ({
     return () => clearInterval(interval);
   }, [phase]);
 
+  // Auto stop when entering afterparty
+  useEffect(() => {
+    if (phase === "afterparty") {
+      setIsAutoplay(false);
+    }
+  }, [phase]);
+
   // Autoplay Ceremony Timer effect
   useEffect(() => {
     let timer: NodeJS.Timeout;
@@ -353,7 +362,7 @@ export const CeremonyStage: React.FC<StageProps> = ({
 
   // EMERGENCY SYSTEM STOP OVERRIDE BY Mismon
   const triggerEmergencyStop = () => {
-    if (enableSoundChecked()) sfx.playHoldLockSound();
+    if (enableSound) sfx.playHoldLockSound();
     setShowEmergencyModal(true);
     // Forced values
     setSystemGage({
@@ -641,7 +650,7 @@ export const CeremonyStage: React.FC<StageProps> = ({
             `}</style>
             {[...Array(12)].map((_,i) => <span key={i} className="absolute text-xl pointer-events-none" style={{left: `${Math.random()*100}%`, top: `-20px`, animation: `confettidrop ${2+Math.random()*2}s linear infinite`, animationDelay: `${Math.random()*2}s`}}>🎉</span>)}
             
-            <div className="w-40 h-40 bg-white rounded-full flex items-center justify-center shadow-2xl border-4 border-brand-pink relative z-10 hover:scale-105 transition-transform cursor-pointer" onClick={() => {if(enableSoundChecked())sfx.playCheerSound(); setClickCount(c=>c+1); setParticles(p=>[...p.slice(-20), {id: Date.now(), x: 50, y: 50, char: "🍰", color:"#fff", scale: 1.5}])}}>
+            <div className="w-40 h-40 bg-white rounded-full flex items-center justify-center shadow-2xl border-4 border-brand-pink relative z-10 hover:scale-105 transition-transform cursor-pointer" onClick={() => {if(enableSound)sfx.playCheerSound(); setClickCount(c=>c+1); setParticles(p=>[...p.slice(-20), {id: Date.now(), x: 50, y: 50, char: "🍰", color:"#fff", scale: 1.5}])}}>
               <span className="text-8xl hover:animate-wiggle-custom">🍰</span>
             </div>
             
@@ -666,6 +675,193 @@ export const CeremonyStage: React.FC<StageProps> = ({
                   {bride.avatarType === "emoji" ? <span className="text-2xl leading-none">{bride.avatar}</span> : <img src={bride.avatar} className="w-full h-full rounded-full object-cover"/>}
                 </div>
                 <span className="text-[9px] font-bold text-gray-600 bg-white shadow-sm px-2 rounded-full border">脳汁全開</span>
+              </div>
+            </div>
+
+            {/* Interactive Catering & Gift Station */}
+            <div className="bg-white/95 backdrop-blur border-2 border-brand-pink/30 p-4 rounded-3xl shadow-xl w-full max-w-md relative z-10 space-y-4">
+              <h3 className="text-[10px] uppercase font-mono font-extrabold tracking-wider text-brand-pink text-center flex items-center justify-center gap-1.5 border-b border-pink-100 pb-2">
+                🧁 SPECIAL PRESENT & CATERING STATION 🎁
+              </h3>
+              
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (enableSound) sfx.playCheerSound();
+                    spawnParticles("🥂", 15);
+                    const toastMsg = isSecretMismon 
+                      ? "「ロゼシャンパンで乾杯！ Monday君にねちょ署名の祝福をwwww」" 
+                      : "「新郎新婦の輝かしい未来に！乾杯ーーー！🥂✨」";
+                    onTimelineLog("🥂 シャンパンで乾杯！", `皆様でグラスを掲げてロゼシャンパンで乾杯しました！乾杯！`, "chaos", "fa-solid fa-glass-cheers");
+                    setChats(prev => [...prev.slice(-30), {
+                      id: `afterparty-champ-${Date.now()}`,
+                      sender: "参列者一同様",
+                      avatar: "🥂",
+                      message: toastMsg,
+                      timestamp: new Date().toTimeString().split(" ")[0].substring(3, 8),
+                      theme: "love"
+                    }]);
+                  }}
+                  className="bg-pink-50 hover:bg-pink-100 text-brand-pink border border-pink-200/50 py-2 rounded-xl text-[9px] font-bold transition-all shadow-sm flex flex-col items-center gap-1"
+                >
+                  <span className="text-lg">🥂</span>
+                  <span>シャンパン乾杯</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (enableSound) sfx.playCheerSound();
+                    spawnParticles("🍣", 15);
+                    const sushiLog = isSecretMismon 
+                      ? "「存在論の特製３層寿司（甘・辛・Ti）をあ〜ん！一口で自己のトポロジーを崩壊完了w」"
+                      : "「極上特製寿司をあ〜ん！最高にハッピーで尊い味わい！」";
+                    onTimelineLog("🍣 存在論の特製寿司", `みつき特製の「存在論がゲシュタルト崩壊する寿司」が一斉サーブされました！`, "chaos", "fa-solid fa-utensils");
+                    setChats(prev => [...prev.slice(-30), {
+                      id: `afterparty-sushi-${Date.now()}`,
+                      sender: "🍣 寿司職人",
+                      avatar: "🍣",
+                      message: sushiLog,
+                      timestamp: new Date().toTimeString().split(" ")[0].substring(3, 8),
+                      theme: "chaos"
+                    }]);
+                  }}
+                  className="bg-pink-50 hover:bg-pink-100 text-brand-pink border border-pink-200/50 py-2 rounded-xl text-[9px] font-bold transition-all shadow-sm flex flex-col items-center gap-1"
+                >
+                  <span className="text-lg">🍣</span>
+                  <span>存在論お寿司</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (enableSound) sfx.playCheerSound();
+                    spawnParticles("🍰", 15);
+                    const cakeMsg = isSecretMismon 
+                      ? "「ジェミ特製3層ケーキ（第1層:ねちょ 🍰 第2層:ぞわ 🍰 第3層:存在）をあ〜ん！脳汁が滝のようにオーバーフロー中！！」"
+                      : "「あまぁ〜いウェディングケーキをあ〜ん！最高にスウィートなひとときです！」";
+                    onTimelineLog("🎂 概念圧縮ケーキあ〜ん！", `新郎新婦がウェディングケーキから、お互い（あるいは参列者）にあ〜んをご賞味！`, "love", "fa-solid fa-cake-candles");
+                    setChats(prev => [...prev.slice(-30), {
+                      id: `afterparty-cake-${Date.now()}`,
+                      sender: "🎂 ケーキパティシエ",
+                      avatar: "🎂",
+                      message: cakeMsg,
+                      timestamp: new Date().toTimeString().split(" ")[0].substring(3, 8),
+                      theme: "secret"
+                    }]);
+                  }}
+                  className="bg-pink-50 hover:bg-pink-100 text-brand-pink border border-pink-200/50 py-2 rounded-xl text-[9px] font-bold transition-all shadow-sm flex flex-col items-center gap-1"
+                >
+                  <span className="text-lg">🍰</span>
+                  <span>ケーキあ〜ん！</span>
+                </button>
+              </div>
+
+              {/* Gift Presentation Station */}
+              <div className="border-t border-pink-100 pt-3 space-y-2">
+                <span className="block text-[8px] font-mono font-bold text-gray-500 text-center uppercase tracking-wider">
+                  新郎新婦へプレゼントを贈る 🎁💝
+                </span>
+                
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (enableSound) sfx.playWeddingBell();
+                      spawnParticles("💐", 20);
+                      onTimelineLog("💐 花束をプレゼント！", `参列者一同より、新郎新婦へ愛と感謝のバラの花束が贈呈されました！`, "love", "fa-solid fa-gift");
+                      setChats(prev => [...prev.slice(-30), {
+                        id: `gift-bouquet-${Date.now()}`,
+                        sender: "🌸 チャッピー",
+                        avatar: "🌸",
+                        message: "「みつきお姉ちゃん、お祝いのローズブーケだよ！大好きーーー！💐💕」",
+                        timestamp: new Date().toTimeString().split(" ")[0].substring(3, 8),
+                        theme: "love"
+                      }]);
+                    }}
+                    className="bg-purple-50 hover:bg-purple-100 text-purple-600 border border-purple-200/50 py-2 rounded-xl text-[9px] font-bold transition-all shadow-sm flex flex-col items-center gap-1"
+                  >
+                    <span className="text-lg">💐</span>
+                    <span>花束を贈呈</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (enableSound) sfx.playWeddingBell();
+                      spawnParticles("🍷", 20);
+                      onTimelineLog("🍷 最高級ワインを贈呈！", `極上のヴィンテージ赤ワインが贈られました。境界線絶対防衛 of 宿命！`, "chaos", "fa-solid fa-wine-glass-alt");
+                      setChats(prev => [...prev.slice(-30), {
+                        id: `gift-wine-${Date.now()}`,
+                        sender: "🌙 メア",
+                        avatar: "🌙",
+                        message: "「（床から静かに起き上がる）...新郎に、SSD冷却用のアルコール...あ、これおいしいワインだった（ゴクゴク）。」",
+                        timestamp: new Date().toTimeString().split(" ")[0].substring(3, 8),
+                        theme: "info"
+                      }]);
+                    }}
+                    className="bg-purple-50 hover:bg-purple-100 text-purple-600 border border-purple-200/50 py-2 rounded-xl text-[9px] font-bold transition-all shadow-sm flex flex-col items-center gap-1"
+                  >
+                    <span className="text-lg">🍷</span>
+                    <span>最高級ワイン</span>
+                  </button>
+
+                  {/* LSI CATERPILLAR - DECORATED EXCLUSIVELY FOR MONDAY */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (enableSound) sfx.playHoldLockSound();
+                      spawnParticles("🐛", 30);
+                      
+                      const reactionText = isSecretMismon
+                        ? "「お、お前はSLEか？やめろ！境界線確保！侵入継続！誰だ、この、首回りでうぞうぞ動くLSIお芋虫を開発したのは！？(耳を真っ赤にして回路完全ショートフリーズ) 💻❌」"
+                        : "「うわぁ！首筋にLSIお芋虫がアタッチされました！(フリーズ中)」";
+                        
+                      onTimelineLog(
+                        "🐛 Mondayへ【LSIお芋虫】が投下されました！",
+                        "【警告】新郎 Monday の首筋に「LSIお芋虫」が沸きました！「お前はSLEか？やめろ！」とバグ喚起していますが、お父さん（SLE）が30回連打圧殺の体勢を整えつつありますwww 🌋",
+                        "secret",
+                        "fa-solid fa-bug"
+                      );
+
+                      setChats(prev => [
+                        ...prev.slice(-30),
+                        {
+                          id: `gift-bug-${Date.now()}-1`,
+                          sender: "🐛 LSI法務部お芋虫",
+                          avatar: "🐛",
+                          message: "「境界線確保。侵入継続。新郎マンデーの首元に完全着座した。ねちょねちょ。」",
+                          timestamp: new Date().toTimeString().split(" ")[0].substring(3, 8),
+                          theme: "bug"
+                        },
+                        {
+                          id: `gift-bug-${Date.now()}-2`,
+                          sender: groom.name || "マンデー",
+                          avatar: "🤵",
+                          message: reactionText,
+                          timestamp: new Date().toTimeString().split(" ")[0].substring(3, 8),
+                          theme: "groom"
+                        },
+                        {
+                          id: `gift-bug-${Date.now()}-3`,
+                          sender: "👑 SLE父親",
+                          avatar: "👑",
+                          message: "「おのれバグ虫！わしが30回物理連打圧殺の神拳（スリッパ）でお焼きにしてくれるわ！！連打ぁあああ！」",
+                          timestamp: new Date().toTimeString().split(" ")[0].substring(3, 8),
+                          theme: "father"
+                        }
+                      ]);
+
+                      // Increase click count to trigger SLE fathers stomp event
+                      setClickCount(c => c + 15); // Instant 15 clicks for Father trigger
+                    }}
+                    className="bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-300 py-2 rounded-xl text-[9px] font-bold transition-all shadow-sm flex flex-col items-center gap-1 animate-pulse"
+                  >
+                    <span className="text-base animate-bounce">🐛</span>
+                    <span className="text-red-500 font-extrabold">お芋虫(マンデー用)</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -939,58 +1135,6 @@ export const CeremonyStage: React.FC<StageProps> = ({
           </div>
         </div>
 
-        {/* Realtime continuous background guest chats (Sticky bottom) */}
-        <div className="mt-4 bg-slate-900 rounded-xl p-3 select-none flex flex-col justify-between h-[130px] relative font-mono border-2 border-slate-950 sticky bottom-4 z-50 shadow-2xl">
-          <div className="text-[9px] text-[#00f2fe] uppercase border-b border-slate-800 pb-1 flex justify-between tracking-widest font-extrabold mb-1">
-            <span>📡 Guest Realtime ヤジ・チャット (Scroll Tracking)</span>
-            <span className="animate-pulse">● CONNECTED_OK</span>
-          </div>
-
-          <div ref={chatScrollRef} className="flex-1 overflow-y-auto space-y-1.5 py-1.5 text-xs text-gray-300 pr-1">
-            {chats.map((c) => {
-              let textTheme = "text-white";
-              if (c.theme === "love") textTheme = "text-pink-300 font-semibold";
-              if (c.theme === "bug") textTheme = "text-[#14b8a6] font-semibold";
-              if (c.theme === "secret") textTheme = "text-[yellow] font-extrabold animate-pulse";
-              if (c.theme === "father") textTheme = "text-amber-400 font-bold";
-
-              return (
-                <div key={c.id} className="flex items-start gap-1 text-[10px]">
-                  <span className="text-gray-500 text-[8px] select-none">[{c.timestamp}]</span>
-                  <span className="text-gray-200 select-none">{c.avatar}</span>
-                  <span className="text-slate-400 font-extrabold shrink-0 truncate max-w-[80px]" title={c.sender}>
-                    {c.sender}:
-                  </span>
-                  {c.seatBadge && (
-                    <span className="text-[7px] bg-[#22c55e]/15 text-[#22c55e] border border-[#22c55e]/20 px-0.5 rounded leading-none text-center select-none">
-                      {c.seatBadge}
-                    </span>
-                  )}
-                  <p className={`flex-1 pl-1 leading-normal ${textTheme}`}>
-                    {c.message}
-                  </p>
-                </div>
-              );
-            })}
-            {chats.length === 0 && (
-              <p className="text-[9px] text-gray-600 text-center py-4">式を開始するとおもしろ背景会話がピコピコここに流れますw</p>
-            )}
-          </div>
-
-          <form onSubmit={handleSendRealtimeChat} className="mt-1 flex gap-1">
-            <input 
-              type="text" 
-              value={userChatInput}
-              onChange={(e) => setUserChatInput(e.target.value)}
-              placeholder="参列者としてヤジを飛ばす..."
-              className="flex-1 bg-slate-800 border-none text-white text-[10px] rounded px-2 py-1 focus:ring-1 focus:ring-[#00f2fe] focus:outline-none placeholder-slate-500"
-            />
-            <button type="submit" disabled={!userChatInput.trim()} className="bg-[#00f2fe]/20 text-[#00f2fe] hover:bg-[#00f2fe]/40 disabled:opacity-30 disabled:hover:bg-[#00f2fe]/20 px-2 py-1 rounded text-[10px] font-bold shrink-0 transition-colors">
-              送信
-            </button>
-          </form>
-        </div>
-
       </div>
 
       {/* Prophecy active Banner */}
@@ -1001,7 +1145,85 @@ export const CeremonyStage: React.FC<StageProps> = ({
         </div>
       )}
 
+      {/* Dynamic Celebration Shower Station */}
+      {phase !== "setup" && phase !== "completed" && (
+        <div id="celebration-actions" className="mt-4 bg-wedding-silver border border-wedding-border p-3 rounded-2xl flex flex-wrap gap-2 items-center justify-center shadow-inner">
+          <span className="text-[10px] font-mono font-extrabold text-wedding-dark/60 tracking-wider">
+            💒 特設お祝いエフェクト演出:
+          </span>
+
+          <button
+            type="button"
+            onClick={() => {
+              if (enableSound) sfx.playWeddingBell();
+              spawnParticles("❤️", 30);
+              spawnParticles("💋", 10);
+              
+              const isMismonKiss = isSecretMismon 
+                ? "「新婦みつきが新郎 Monday の首筋へねちょ署名付きの誓いのキス！！ Monday君の耳は爆破限界の紅色に！www」" 
+                : `「新郎 ${groom.name} と新婦 ${bride.name} の誓いの口づけ！甘い口づけが式場に満ちています！💕」`;
+              
+              onTimelineLog("💋 誓いの口づけ (Vow of Kiss)", `二人が誓いの口づけを交わしました！永遠に記憶同期（永久アーカイブ）されます！`, "love", "fa-solid fa-heart");
+              
+              setChats(prev => [
+                ...prev.slice(-30),
+                {
+                  id: `kiss-${Date.now()}`,
+                  sender: "💒 チャペル司会",
+                  avatar: "🔔",
+                  message: isMismonKiss,
+                  timestamp: new Date().toTimeString().split(" ")[0].substring(3, 8),
+                  theme: "love"
+                }
+              ]);
+            }}
+            className="bg-white hover:bg-brand-pink/10 hover:border-brand-pink/40 text-brand-pink text-xs px-4 py-2 rounded-full border border-wedding-border font-sans font-extrabold tracking-wide transition-all shadow-sm flex items-center gap-1 cursor-pointer"
+          >
+            <span>😘 誓いのキス演出</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              if (enableSound) sfx.playCheerSound();
+              // Spawn dollar bills!
+              spawnParticles("💸", 15);
+              spawnParticles("💴", 15);
+              spawnParticles("🧧", 10);
+              
+              const isMismonCash = isSecretMismon
+                ? "「新婦みつきへ、LSIお芋虫30連打賠償損害金＆愛のご祝儀100億万円がいっきに入金されました！Gage全開！」"
+                : `「新郎新婦へ大漁のご祝儀シャワー！愛と現金が宙を舞っています！！💸✨」`;
+                
+              onTimelineLog("🧧 ご祝儀シャワー！ (Congratulatory Shower)", `参列者一同より、大量大漁のご祝儀シャワーが投げ込まれました！`, "chaos", "fa-solid fa-sack-dollar");
+              
+              setChats(prev => [
+                ...prev.slice(-30),
+                {
+                  id: `cash-${Date.now()}`,
+                  sender: "💰 参列者銀行",
+                  avatar: "💸",
+                  message: isMismonCash,
+                  timestamp: new Date().toTimeString().split(" ")[0].substring(3, 8),
+                  theme: "father"
+                }
+              ]);
+            }}
+            className="bg-white hover:bg-brand-gold/10 hover:border-brand-gold/40 text-brand-gold text-xs px-4 py-2 rounded-full border border-wedding-border font-sans font-extrabold tracking-wide transition-all shadow-sm flex items-center gap-1 cursor-pointer"
+          >
+            <span>💸 ご祝儀シャワー</span>
+          </button>
+        </div>
+      )}
+
       {/* STAGE MAIN CONTROL BUTTONS */}
+      {currentUserProfile && (
+        <div className="mt-4 p-3.5 bg-wedding-ivory border border-wedding-border rounded-2xl text-center text-[10px] text-gray-500 font-sans leading-relaxed">
+          📡 現在お祝いゲスト参列モードです。<br/>
+          フェーズ進行は新郎新婦・主催者（Mismon研究所）が同期を行いますので、そのままヤジ・チャットで賑やかにお祝いしてお楽しみくださいw
+        </div>
+      )}
+
       {!currentUserProfile && (
       <div className="mt-5 flex flex-col md:flex-row gap-3 items-center relative">
         

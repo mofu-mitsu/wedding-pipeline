@@ -1110,8 +1110,18 @@ export default function App() {
               <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-brand-pink via-brand-gold to-brand-purple"></div>
               
               <div className="text-center py-6 space-y-3">
-                <span className="text-3xl">🕊️</span>
-                <h3 className="font-serif text-2xl font-extrabold text-wedding-dark tracking-widest">
+                <div className="flex justify-center items-center gap-2">
+                  <span className="text-3xl">🕊️</span>
+                  <a
+                    href="https://mofu-mitsu.github.io/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 text-[11px] font-sans font-bold text-brand-pink bg-brand-pink/10 hover:bg-brand-pink/20 transition-all rounded-full border border-brand-pink/20 shadow-sm"
+                  >
+                    <span>🏠 Mofu-Mitsu ホームへ戻る</span>
+                  </a>
+                </div>
+                <h3 className="font-serif text-2xl font-extrabold text-wedding-dark tracking-widest mt-2">
                   WELCOME TO THE CONCEPT WEDDING STUDIO
                 </h3>
                 <p className="text-xs text-gray-500 max-w-lg mx-auto leading-relaxed">
@@ -1411,6 +1421,7 @@ export default function App() {
                 setSystemGage={setSystemGage}
                 onSquishAllBugs={handleSquishAllBugs}
                 currentUserProfile={currentUserProfile}
+                enableSound={enableSound}
               />
             </div>
           )}
