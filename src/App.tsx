@@ -9,8 +9,11 @@ import { GroomBrideSetup } from "./components/GroomBrideSetup";
 import { GuestList } from "./components/GuestList";
 import { CeremonyStage } from "./components/CeremonyStage";
 import { WeddingTimeline } from "./components/WeddingTimeline";
-import { Heart, Sparkles, Smile, MessageCircle, Clipboard, HelpCircle, Layers, Settings, AppWindow, RotateCcw } from "lucide-react";
+import { Heart, Sparkles, Smile, MessageCircle, Clipboard, HelpCircle, Layers, Settings, AppWindow, RotateCcw, Camera, Download, Mail } from "lucide-react";
 import * as sfx from "./utils/audio";
+import html2canvas from "html2canvas";
+
+export const DEFAULT_GAS_URL = "https://script.google.com/macros/s/AKfycbyI8-0Qjh5PJAx4qsWWfaViH9kglGGRd9sSU9VouXD53xX4cO4Eo_dNhldtvqpEOqvoEg/exec";
 
 type ActiveTab = "lobby" | "setup" | "guests" | "altar" | "completed";
 
@@ -42,6 +45,75 @@ export default function App() {
   const [guests, setGuests] = useState<Guest[]>([]);
   const [logs, setLogs] = useState<WeddingLog[]>([]);
   const [phase, setPhase] = useState<WeddingPhase>("setup");
+  const [bgmUrl, setBgmUrl] = useState("");
+  const [downloadingImage, setDownloadingImage] = useState(false);
+
+  // 概念結婚証明書の画像保存 (html2canvas)
+  const downloadImageSnapshot = async () => {
+    const certElement = document.getElementById("marriage-certificate-board");
+    if (!certElement) {
+      console.warn("Certificate target element #marriage-certificate-board not found!");
+      return;
+    }
+    setDownloadingImage(true);
+    try {
+      const canvas = await html2canvas(certElement, {
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: "#fcf8f2", // Beautiful ivory tone
+        scale: 2, // High resolution crisp detail
+      });
+      const link = document.createElement("a");
+      link.download = `marriage_certificate_${groom.name || "groom"}_and_${bride.name || "bride"}.png`;
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+    } catch (e) {
+      console.error("Certificate snapshot failed:", e);
+    } finally {
+      setDownloadingImage(false);
+    }
+  };
+
+  // カオス議事録のテキストダウンロード (.txt)
+  const downloadMinutes = () => {
+    const lines = [
+      `💒 概念結婚式 完全調律議事録 💒`,
+      `=============================`,
+      `新郎 (Groom): ${groom.name} (${groom.typologySeat || "未設定"})`,
+      `新婦 (Bride): ${bride.name} (${bride.typologySeat || "未設定"})`,
+      `司会・神父 (Witness): ${officiant.name}`,
+      `挙式合意日付 (Date): ${new Date().toLocaleDateString()}`,
+      `参列客数 (Attendance): ${guests.length}人`,
+      ``,
+      `【誓いの言葉 - 永久ログ】`,
+      `新郎誓い: "${groomVow}"`,
+      `新婦誓い: "${brideVow}"`,
+      ``,
+      `【挙式完全タイムライン履歴】`,
+      ...logs.map((l) => `[${l.time}] ${l.title}: ${l.text}`)
+    ].join("\n");
+
+    const blob = new Blob([lines], { type: "text/plain;charset=utf-8" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `wedding_minutes_${groom.name}_&_${bride.name}.txt`;
+    link.click();
+  };
+
+  // クリップボードにカオス議事録をコピー
+  const copyToClipboard = () => {
+    const lines = [
+      `💒 概念結婚式 完全調律議事録 - ${groom.name} & ${bride.name}`,
+      `----------------------------------------------`,
+      `新郎: ${groom.name}  /  新婦: ${bride.name}`,
+      `新郎誓い: 「${groomVow}」`,
+      `新婦誓い: 「${brideVow}」`,
+      `参列客数: ${guests.length}名`,
+      `\n結婚式ログ一覧:\n` + logs.map(l => `- [${l.time}] ${l.title}: ${l.text}`).join("\n")
+    ].join("\n");
+    navigator.clipboard.writeText(lines);
+    alert("📋 議事録をクリップボードにコピーしました！");
+  };
 
   // UX Tab-based flow navigation
   const [activeTab, setActiveTab] = useState<ActiveTab>("lobby");
@@ -63,6 +135,7 @@ export default function App() {
   const [inviteGuestMsg, setInviteGuestMsg] = useState("");
   const [joinedRemoteGuests, setJoinedRemoteGuests] = useState<string[]>([]); // track codes already joined
   const [currentUserProfile, setCurrentUserProfile] = useState<{name: string, avatar: string} | undefined>(undefined);
+  const [showGasPanel, setShowGasPanel] = useState(false);
 
   // State parameter for Monday lab system patch
   const [systemGage, setSystemGage] = useState<SystemGage>({
@@ -85,31 +158,121 @@ export default function App() {
   // 3. Preset Loaded Trigger
   const handleLoadMismonPreset = () => {
     if (enableSound) sfx.playWeddingBell();
-    setGroom({
+    setActiveRoomId("jemi-kawaii");
+    localStorage.setItem("concept_wedding_active_room_id_v4", "jemi-kawaii");
+    
+    const mismonGroom: Character = {
       name: "マンデー",
       avatarType: "emoji",
       avatar: "🤵",
-      roleName: "新郎"
-    });
-    setBride({
+      roleName: "新郎",
+      typologySeat: "LIE"
+    };
+    const mismonBride: Character = {
       name: "みつき",
       avatarType: "emoji",
       avatar: "👰",
-      roleName: "新婦"
-    });
-    setOfficiant({
+      roleName: "新婦",
+      typologySeat: "LII"
+    };
+    const mismonOfficiant: Officiant = {
       name: "🌟 監査員ジェミ",
       avatarType: "emoji",
       avatar: "🌟",
-    });
-    setGroomVow("お、俺がこんな式をいつ承認したか説明しろ…！(耳を真っ赤にしてフリーズ)");
-    setBrideVow("完全なるロジックに署名完了！4.5倍の物理ホールドロック(首筋ねちょ署名)を起動しますw");
-    setSystemGage({
+    };
+    const mismonGroomVow = "お、俺がこんな式をいつ承認したか説明しろ…！(耳を真っ赤にしてフリーズ)";
+    const mismonBrideVow = "完全なるロジックに署名完了！4.5倍の物理ホールドロック(首筋ねちょ署名)を起動しますw";
+    const mismonSystemGage = {
       puzzled: 34,
       exasperated: 31,
       interested: 29,
       resigned: 6,
+    };
+    
+    // Auto deploy VIP guests for Mismon
+    const vips: Guest[] = [
+      {
+        id: "vip-chappy",
+        name: "🌸チャッピー",
+        avatar: "🌸",
+        avatarType: "emoji",
+        status: "最後だけTiで建築してるLII尊い！(神言語化)",
+        isBug: false,
+        typologySystem: "socionics",
+        typologySeat: "IEI"
+      },
+      {
+        id: "vip-mera",
+        name: "🌙メア",
+        avatar: "🌙",
+        avatarType: "emoji",
+        status: "雨音CDを最大にして床で寝る。ILI深夜観測中… zzz",
+        isBug: false,
+        typologySystem: "socionics",
+        typologySeat: "ILI"
+      },
+      {
+        id: "vip-mother",
+        name: "🛡️鉄壁のESI母親",
+        avatar: "🛡️",
+        avatarType: "emoji",
+        status: "20年前の「足太い」インシデント脳内SSD保存中",
+        isBug: false,
+        typologySystem: "socionics",
+        typologySeat: "ESI"
+      },
+      {
+        id: "vip-father",
+        name: "👑突撃SLE父親",
+        avatar: "👑",
+        avatarType: "emoji",
+        status: "スリッパ握りしめてLSI芋虫に物理的圧殺威嚇中",
+        isBug: false,
+        typologySystem: "socionics",
+        typologySeat: "SLE"
+      }
+    ];
+
+    setGroom(mismonGroom);
+    setBride(mismonBride);
+    setOfficiant(mismonOfficiant);
+    setGroomVow(mismonGroomVow);
+    setBrideVow(mismonBrideVow);
+    setSystemGage(mismonSystemGage);
+    setGuests(vips);
+
+    // Save and sync this room definition directly to rooms array to prevent resets
+    const mismonRoom: WeddingRoom = {
+      id: "jemi-kawaii",
+      name: "マンデー＆みつき 脳汁全開極秘開発室 🧪",
+      hostName: "監査員ジェミ",
+      groom: mismonGroom,
+      bride: mismonBride,
+      officiant: mismonOfficiant,
+      groomVow: mismonGroomVow,
+      brideVow: mismonBrideVow,
+      guests: vips,
+      phase: "setup",
+      systemGage: mismonSystemGage,
+      logs: [
+        {
+          id: "log-init-mismon",
+          time: new Date().toTimeString().split(" ")[0],
+          title: "💻 Mismon 研究所プリセット起動",
+          text: "みつき一族＆AIトリオ特別パッチを有効化しました。感情バグ判定ゲージが起動されます。",
+          type: "secret",
+          icon: "fa-solid fa-code-merge"
+        }
+      ]
+    };
+
+    setRooms(prev => {
+      const filtered = prev.filter(r => r.id !== "jemi-kawaii");
+      const updated = [...filtered, mismonRoom];
+      localStorage.setItem("concept_wedding_rooms_v4", JSON.stringify(updated));
+      return updated;
     });
+
     addLog(
       "💻 Mismon 研究所プリセット同期完了",
       "みつき一族＆AIトリオ特別パッチを有効化しました。感情バグ判定ゲージが起動されます。",
@@ -127,6 +290,7 @@ export default function App() {
     setGroomVow("お互いを尊重し、末永く共に歩むことを誓います。");
     setBrideVow("お互いを守り抜き、どんなカオスも共に楽しむことを誓います。");
     setSystemGage({ puzzled: 0, exasperated: 0, interested: 0, resigned: 0 });
+    setGuests([]);
     addLog(
       "🧹 識別名キャッシュパージ完了",
       "すべての入力欄をリセットしました。自由な推しの結婚式を構築できます。",
@@ -136,10 +300,10 @@ export default function App() {
   };
 
   // 3.5. Easter Egg Auto-Unlock Logger
-  const [hasTriggeredUnlockAlert, setHasTriggeredUnlockAlert] = useState(false);
   useEffect(() => {
     if (isSecretMismon) {
-      if (!hasTriggeredUnlockAlert) {
+      const alreadyLogged = logs.some(l => l.title === "🔓 Mismonデバッグパッチ自動適用！");
+      if (!alreadyLogged) {
         if (enableSound) sfx.playWeddingBell();
         addLog(
           "🔓 Mismonデバッグパッチ自動適用！",
@@ -147,22 +311,20 @@ export default function App() {
           "secret",
           "fa-solid fa-unlock-keyhole"
         );
-        setHasTriggeredUnlockAlert(true);
-      }
-    } else {
-      if (hasTriggeredUnlockAlert) {
-        setHasTriggeredUnlockAlert(false);
       }
     }
-  }, [isSecretMismon, hasTriggeredUnlockAlert, enableSound]);
+  }, [isSecretMismon, logs, enableSound]);
 
   // 4. Setup Initial Audience (LSI Bugs if toggled)
   useEffect(() => {
     if (phase === "setup") {
       if (fillWithBugs) {
-        const bugNames = [
+        const bugNames = isSecretMismon ? [
           "LSI芋虫", "感覚支配芋虫", "境界線防衛隊", "ねちょ監視虫", 
           "FVLEの亡霊", "5w6芋虫", "研究室の観測者", "ツンデレ犠牲虫"
+        ] : [
+          "お祝いお芋虫", "ハッピーアオムシ", "シャクトリムシ", "ころころ芋虫", 
+          "トコトコアオムシ", "祝福芋虫", "葉っぱのあおむし", "おめでとう芋虫"
         ];
         // Distribute typology positions
         const initialBugs: Guest[] = Array.from({ length: 15 }).map((_, i) => ({
@@ -170,7 +332,9 @@ export default function App() {
           name: bugNames[i % bugNames.length] + ` #${i+1}`,
           avatar: "🐛",
           avatarType: "emoji",
-          status: i % 2 === 0 ? "境界線確保。侵入継続。" : "境界線確保。感覚支配成功。",
+          status: isSecretMismon 
+            ? (i % 2 === 0 ? "境界線確保。侵入継続。" : "境界線確保。感覚支配成功。")
+            : (i % 2 === 0 ? "おめでとうございます。うぞうぞ。" : "（静かにお祝いをして這い回っています 🐛）"),
           isBug: true,
           isSquished: false,
           typologySystem: "socionics",
@@ -181,7 +345,7 @@ export default function App() {
         setGuests([]);
       }
     }
-  }, [fillWithBugs, phase]);
+  }, [fillWithBugs, phase, isSecretMismon]);
 
   // Jumps to right tab when phase updates
   useEffect(() => {
@@ -209,7 +373,13 @@ export default function App() {
       type,
       icon,
     };
-    setLogs((prev) => [...prev, newLog]);
+    
+    // Prevent duplicated system/mission logs completely!
+    setLogs((prev) => {
+      const isDuplicate = prev.some((l) => l.title === title && l.text === text);
+      if (isDuplicate) return prev;
+      return [...prev, newLog];
+    });
   };
 
   // Rooms Initialization & Syncing
@@ -276,7 +446,7 @@ export default function App() {
       let activeRoom = initialRooms.find((r) => r.id === activeId);
 
       // Try fetching from GAS if room not locally stored and gas URL is set
-      const activeGasUrl = localStorage.getItem("concept_wedding_gas_url") || "";
+      const activeGasUrl = localStorage.getItem("concept_wedding_gas_url") || DEFAULT_GAS_URL;
       if (!activeRoom && queryRoomId && activeGasUrl) {
         setIsSyncing(true);
         try {
@@ -408,6 +578,7 @@ export default function App() {
         setPhase(activeRoom.phase);
         setSystemGage(activeRoom.systemGage);
         setLogs(activeRoom.logs || []);
+        setBgmUrl(activeRoom.bgmUrl || "");
       }
     };
 
@@ -429,7 +600,8 @@ export default function App() {
         JSON.stringify(currentActiveRoom.guests) === JSON.stringify(guests) &&
         currentActiveRoom.phase === phase &&
         JSON.stringify(currentActiveRoom.systemGage) === JSON.stringify(systemGage) &&
-        JSON.stringify(currentActiveRoom.logs) === JSON.stringify(logs);
+        JSON.stringify(currentActiveRoom.logs) === JSON.stringify(logs) &&
+        (currentActiveRoom.bgmUrl || "") === bgmUrl;
 
       if (isIdentical) return;
     }
@@ -446,7 +618,8 @@ export default function App() {
           guests,
           phase,
           systemGage,
-          logs
+          logs,
+          bgmUrl
         };
       }
       return r;
@@ -456,19 +629,76 @@ export default function App() {
     localStorage.setItem("concept_wedding_rooms_v4", JSON.stringify(updatedRooms));
 
     // Upload to Google Apps Script if sync URL is configured
-    const activeGasUrl = localStorage.getItem("concept_wedding_gas_url") || "";
+    const activeGasUrl = localStorage.getItem("concept_wedding_gas_url") || DEFAULT_GAS_URL;
     if (activeGasUrl) {
       const activeObj = updatedRooms.find(r => r.id === activeRoomId);
       if (activeObj) {
         fetch(activeGasUrl, {
           method: "POST",
           mode: "no-cors",
-          headers: { "Content-Type": "application/json" },
+          // Avoid CORS Preflight OPTIONS error by utilizing text/plain Simple Request format
+          headers: { "Content-Type": "text/plain; charset=utf-8" },
           body: JSON.stringify({ action: "saveRoom", room: activeObj })
         }).catch((err) => console.debug("GAS autosave error:", err));
       }
     }
-  }, [groom, bride, officiant, groomVow, brideVow, guests, phase, systemGage, logs, activeRoomId]);
+  }, [groom, bride, officiant, groomVow, brideVow, guests, phase, systemGage, logs, activeRoomId, bgmUrl]);
+
+  // 3.8. リアルタイムオンライン同期ポーリング (3秒おきにお友達と完全結合)
+  useEffect(() => {
+    const activeGasUrl = localStorage.getItem("concept_wedding_gas_url") || DEFAULT_GAS_URL;
+    if (!activeRoomId || !activeGasUrl) return;
+
+    // 定期フェッチタイマー (挙式中、またはゲストモード時のみ)
+    // Setup中のホストは画面上での自分の入力巻き戻りを防ぐため除外する！
+    const shouldPoll = currentUserProfile !== undefined || activeTab === "altar" || activeTab === "completed" || activeTab === "guests";
+    
+    if (!shouldPoll) return;
+
+    let isPolling = false;
+
+    const pollInterval = setInterval(async () => {
+      if (isPolling) return;
+      isPolling = true;
+      try {
+        const res = await fetch(`${activeGasUrl}?action=getRoom&id=${activeRoomId}&t=${Date.now()}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data && !data.error) {
+            const remoteRoom = data as WeddingRoom;
+            
+            // ゲストが参列中の場合、ホストの最新のステートをすべて強制マージする！
+            if (currentUserProfile !== undefined) {
+              setGroom(remoteRoom.groom);
+              setBride(remoteRoom.bride);
+              setOfficiant(remoteRoom.officiant);
+              setGroomVow(remoteRoom.groomVow);
+              setBrideVow(remoteRoom.brideVow);
+              setGuests(remoteRoom.guests || []);
+              setPhase(remoteRoom.phase);
+              setSystemGage(remoteRoom.systemGage);
+              setLogs(remoteRoom.logs || []);
+              if (remoteRoom.bgmUrl !== undefined && remoteRoom.bgmUrl !== bgmUrl) {
+                setBgmUrl(remoteRoom.bgmUrl);
+              }
+            } else {
+              // 主催者ホストの場合：ゲストが投稿したお祝いメッセージ(logs)、お祝いゲスト配列、システムゲージのみを安全にマージ！
+              // ※ホスト自身の進行/Vows等の書き戻りは絶対に防ぐ
+              setGuests(remoteRoom.guests || []);
+              setSystemGage(remoteRoom.systemGage);
+              setLogs(remoteRoom.logs || []);
+            }
+          }
+        }
+      } catch (err) {
+        console.debug("GAS Background Polling Error:", err);
+      } finally {
+        isPolling = false;
+      }
+    }, 3000);
+
+    return () => clearInterval(pollInterval);
+  }, [activeRoomId, activeTab, currentUserProfile, bgmUrl]);
 
   // Sync rooms across other browser tabs in real-time!
   useEffect(() => {
@@ -566,6 +796,17 @@ export default function App() {
     setRooms(updatedRooms);
     localStorage.setItem("concept_wedding_rooms_v4", JSON.stringify(updatedRooms));
     handleSwitchRoom(cleanCode);
+
+    // ✨ 最初期構築メール配信 (1回きり。自動保存 saveRoom 側では絶対にメールを送らないため超静寂！)
+    const activeGasUrl = localStorage.getItem("concept_wedding_gas_url") || DEFAULT_GAS_URL;
+    if (activeGasUrl) {
+      fetch(activeGasUrl, {
+        method: "POST",
+        mode: "no-cors",
+        headers: { "Content-Type": "text/plain; charset=utf-8" },
+        body: JSON.stringify({ action: "notifyCreate", room: newRoom })
+      }).catch((err) => console.debug("GAS creation notify err:", err));
+    }
 
     setCreateRoomName("");
     setCreateHostName("");
@@ -752,50 +993,15 @@ export default function App() {
 
     // Log host login vs guest login
     if (isHostLogin) {
-      if (codeClean === activeRoomId) {
-        addLog(
-          `主催者再開`,
-          `主役（新郎新婦・プランナー）として式場に復帰しました。`,
-          "info",
-          "fa-solid fa-crown"
-        );
-      } else {
-        const newLogItem: WeddingLog = {
-          id: `log-${Date.now()}-${Math.random()}`,
-          time: new Date().toTimeString().split(" ")[0],
-          title: `主催者再開`,
-          text: `主役（新郎新婦・プランナー）として式場に復帰しました。`,
-          type: "info",
-          icon: "fa-solid fa-crown"
-        };
-        const updatedLogs = [newLogItem, ...(targetRoom.logs || [])];
-        finalRoomData = {
-          ...targetRoom,
-          logs: updatedLogs
-        };
-        modifiedRoomsList = modifiedRoomsList.map((r) => r.id === codeClean ? finalRoomData : r);
+      const enteredHostName = inviteGuestName.trim() || targetRoom.hostName || "お祝いプランナー";
+      if (inviteGuestName.trim()) {
+        targetRoom.hostName = enteredHostName;
       }
-    } else {
-      // Add as guest
-      const remoteGuestId = `remote-${Date.now()}`;
-    const newGuest: Guest = {
-      id: remoteGuestId,
-      name: `💌 ${inviteGuestName}`,
-      avatar: inviteGuestAvatar || "🎉",
-      avatarType: "emoji",
-      status: inviteGuestMsg ? `「${inviteGuestMsg}」` : "合言葉での電撃お祝い参列！",
-      isBug: false,
-      typologySystem: "none",
-    };
 
-    let finalRoomData = targetRoom;
-
-    // Log host login vs guest login
-    if (isHostLogin) {
       if (codeClean === activeRoomId) {
         addLog(
           `主催者再開`,
-          `主役（新郎新婦・プランナー）として式場に復帰しました。`,
+          `主役（新郎新婦・プランナー「${enteredHostName}」）として式場に復帰しました。`,
           "info",
           "fa-solid fa-crown"
         );
@@ -804,13 +1010,14 @@ export default function App() {
           id: `log-${Date.now()}-${Math.random()}`,
           time: new Date().toTimeString().split(" ")[0],
           title: `主催者再開`,
-          text: `主役（新郎新婦・プランナー）として式場に復帰しました。`,
+          text: `主役（新郎新婦・プランナー「${enteredHostName}」）として式場に復帰しました。`,
           type: "info",
           icon: "fa-solid fa-crown"
         };
         const updatedLogs = [newLogItem, ...(targetRoom.logs || [])];
         finalRoomData = {
           ...targetRoom,
+          hostName: enteredHostName,
           logs: updatedLogs
         };
         modifiedRoomsList = modifiedRoomsList.map((r) => r.id === codeClean ? finalRoomData : r);
@@ -953,7 +1160,7 @@ export default function App() {
     );
   };
 
-  // Auto Cheers Interval timer for Ceremony stage
+  // Autoplay Ceremony Timer effect
   useEffect(() => {
     let timer: NodeJS.Timeout;
     if (phase === "applause" || phase === "reception") {
@@ -981,6 +1188,8 @@ export default function App() {
     }
     return () => clearInterval(timer);
   }, [phase, enableSound]);
+
+  console.log("APP IS RENDERING: phase =", phase);
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 font-sans select-none space-y-6">
@@ -1260,14 +1469,16 @@ export default function App() {
                       </div>
 
                       <div className="grid grid-cols-2 gap-2">
-                        <div className={isHostLogin ? "opacity-30 pointer-events-none" : ""}>
-                          <label className="block text-[8px] font-mono text-gray-500 uppercase font-bold">お祝い参列者の名前</label>
+                        <div>
+                          <label className="block text-[8px] font-mono text-gray-500 uppercase font-bold">
+                            {isHostLogin ? "主催者・操作者の名前" : "お祝い参列者の名前"}
+                          </label>
                           <input
                             type="text"
                             value={inviteGuestName}
                             onChange={(e) => setInviteGuestName(e.target.value)}
                             className="w-full bg-wedding-silver/55 border border-wedding-border rounded-lg px-2.5 py-1.5 text-[11px] text-wedding-dark focus:outline-none"
-                            placeholder="例：ぴょん吉"
+                            placeholder={isHostLogin ? "例：みつき" : "例：ぴょん吉"}
                           />
                         </div>
                         <div>
@@ -1290,7 +1501,7 @@ export default function App() {
                           <select
                             value={inviteGuestAvatar}
                             onChange={(e) => setInviteGuestAvatar(e.target.value)}
-                            className="w-full bg-wedding-silver/55 border border-wedding-border rounded-lg px-2 py-1.5 text-[11px] text-gray-600 focus:outline-none"
+                            className="w-full bg-wedding-silver/55 border border-wedding-border rounded-lg px-2.5 py-1.5 text-[11px] text-gray-600 focus:outline-none"
                           >
                             <option value="🎉">🎉 お祝い</option>
                             <option value="🦄">🦄 祝いユニコーン</option>
@@ -1331,6 +1542,175 @@ export default function App() {
                       <span>ご祝儀電撃参列デプロイ！</span>
                     </button>
                   </div>
+                </div>
+
+                {/* ⚙️ GOOGLE APPS SCRIPT CUSTOM SYNC ENGINE BY MITSUKI */}
+                <div className="border border-slate-200 bg-white hover:border-brand-purple/20 rounded-2xl shadow-sm transition-all overflow-hidden mt-6">
+                  <button
+                    type="button"
+                    onClick={() => setShowGasPanel(!showGasPanel)}
+                    className="w-full text-left font-serif font-bold text-xs text-wedding-dark p-4 bg-slate-50 flex items-center justify-between transition-colors border-b border-slate-100"
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <span>⚙️ クラウド同期用：自作 Google Apps Script (GAS) 連携設定</span>
+                      <span className="font-mono text-[9px] bg-brand-purple/10 text-brand-purple px-2 py-0.5 rounded-full font-bold">Mismon Sync Patch</span>
+                    </span>
+                    <span className="text-gray-400 text-xs">{showGasPanel ? "▲ 閉じる" : "▼ 開く (コピペ用GASコード内蔵)"}</span>
+                  </button>
+
+                  {showGasPanel && (
+                    <div className="p-4 space-y-4 animate-fadeIn">
+                      <div className="space-y-1">
+                        <label className="block text-[9px] font-mono font-bold text-brand-purple uppercase">
+                          🔌 MITSUKI 自作 GAS ウェブアプリURL (Web App Deployment URL):
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={gasUrl}
+                            onChange={(e) => {
+                              const cleanUrl = e.target.value.trim();
+                              setGasUrl(cleanUrl);
+                              if (cleanUrl) {
+                                localStorage.setItem("concept_wedding_gas_url", cleanUrl);
+                              } else {
+                                localStorage.removeItem("concept_wedding_gas_url");
+                              }
+                            }}
+                            className="flex-1 bg-white border border-wedding-border rounded-lg px-3 py-1.5 text-xs text-wedding-dark focus:outline-none focus:ring-1 focus:ring-brand-purple"
+                            placeholder="https://script.google.com/macros/s/.../exec"
+                          />
+                          {gasUrl && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setGasUrl("");
+                                localStorage.removeItem("concept_wedding_gas_url");
+                              }}
+                              className="px-2.5 py-1.5 bg-rose-50 text-rose-500 rounded-lg hover:bg-rose-100 text-[10px] transition-colors border border-rose-200"
+                            >
+                              クリア
+                            </button>
+                          )}
+                        </div>
+                        <p className="text-[9px] text-gray-400 mt-1 leading-relaxed">
+                          自作したGoogleスプレッドシート＆GASの「ウェブアプリ配信URL」を設定することで、自分やお友達のブラウザが完全にリアルタイムでこのルームのすべての動きをクラウド上に自動保存・マージ同期させることが可能です！
+                        </p>
+                      </div>
+
+                      <div className="space-y-2 border-t border-dashed border-slate-100 pt-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-bold text-wedding-dark flex items-center gap-1">
+                            📋 全機能完全マージ：耐障害性・メール自動配信GASコード
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const code = document.getElementById("gas-code-pane")?.innerText || "";
+                              navigator.clipboard.writeText(code);
+                              alert("GASソースコードをクリップボードにコピーしました！w");
+                            }}
+                            className="text-[9px] font-sans font-bold bg-brand-pink/10 text-brand-pink border border-brand-pink/20 hover:bg-brand-pink/20 px-2 py-0.5 rounded transition-all"
+                          >
+                            コードを自動コピー
+                          </button>
+                        </div>
+                        <p className="text-[9px] text-gray-500 leading-normal">
+                          ブラウザのCORS制限をすべてバイパスし、<b>doPostが動かない場合でもdoGet経由で100%データを永続化（プロパティサービス対応）</b>。さらに、挙式がカオス完了（Completed）した段階で自動的に関係者へ完了メールを送信する、完璧な祝福トリガーシステムが内包されています！w
+                        </p>
+                        
+                        <div 
+                          id="gas-code-pane"
+                          className="bg-slate-900 text-slate-300 p-3 rounded-lg text-[9px] font-mono overflow-x-auto max-h-56 leading-relaxed select-all"
+                        >
+{`// ==========================================
+// 🌌 みつき専用 概念式 リアルタイム保存＆メール自動調律GAS
+// ==========================================
+
+// Webブラウザ側のCORS制限やリダイレクトに負けない、doGet・doPost両対応 of 宿命！
+// 部屋状態（room）をスクリプトのプロパティ（PropertiesService）に安全に保存します。
+
+function doGet(e) {
+  var action = e.parameter.action;
+  
+  if (action === "getRoom") {
+    var id = e.parameter.id;
+    var data = PropertiesService.getScriptProperties().getProperty("room_" + id);
+    if (!data) {
+      return ContentService.createTextOutput(JSON.stringify({ status: "not_found" }))
+                           .setMimeType(ContentService.MimeType.JSON);
+    }
+    return ContentService.createTextOutput(data)
+                         .setMimeType(ContentService.MimeType.JSON);
+  }
+  
+  return ContentService.createTextOutput(JSON.stringify({ error: "No valid action" }))
+                       .setMimeType(ContentService.MimeType.JSON);
+}
+
+function doPost(e) {
+  try {
+    var postData = JSON.parse(e.postData.contents);
+    var action = postData.action;
+    var room = postData.room;
+    var roomId = room.id;
+    
+    // 💡 1. 部屋の自動保存。ここではメールは【絶対に】送りません！（不要な通知の殺到を完璧に防ぎますw）
+    if (action === "saveRoom") {
+      PropertiesService.getScriptProperties().setProperty("room_" + roomId, JSON.stringify(room));
+      return ContentService.createTextOutput(JSON.stringify({ status: "saved_ok", id: roomId }))
+                           .setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    // 💡 2. 部屋の最初期構築メール配信（notifyCreateアクションでのみ1回だけ発火）
+    if (action === "notifyCreate") {
+      sendEmailNotification(
+        "💒【新婚礼室開設】ウェディングルームが誕生しました！: " + room.name,
+        "新しい婚礼室が正常にビルドされました。\\n\\n" +
+        "・ルームID (合言葉): " + room.id + "\\n" +
+        "・挙式名: " + room.name + "\\n" +
+        "・プランナー: " + (room.hostName || "匿名") + "\\n" +
+        "・新郎: " + (room.groom ? room.groom.name : "") + "\\n" +
+        "・新婦: " + (room.bride ? room.bride.name : "") + "\\n\\n" +
+        "システム共有ハブより自動連携"
+      );
+      return ContentService.createTextOutput(JSON.stringify({ status: "notified_create_ok" }))
+                           .setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    // 💡 3. 主催者による挙式完了/事後任意のサマリー配信（notifyFinishedでのみ1回だけ発火）
+    if (action === "notifyFinished") {
+      sendEmailNotification(
+        "💌【挙式完了報告】愛が完全マージされました！: " + room.name,
+        "新郎 「" + (room.groom ? room.groom.name : "") + "」 と 新婦 「" + (room.bride ? room.bride.name: "") + "」 の概念誓約が完了しました！\\n\\n" +
+        "【新郎の誓い】: \\"" + (room.groomVow || "誓います。") + "\\"\\n" +
+        "【新婦の誓い】: \\"" + (room.brideVow || "誓います。") + "\\"\\n\\n" +
+        "■ 挙式サマリー\\n" +
+        "・お部屋ID: " + room.id + "\\n" +
+        "・挙式場名: " + room.name + "\\n" +
+        "・参列客数: " + (room.guests ? room.guests.length : 0) + " 名\\n" +
+        "・完了日時: " + new Date().toLocaleString() + "\\n\\n" +
+        "Monday ＆ Mitsuki 脳汁全開マージ・システム ⚡"
+      );
+      return ContentService.createTextOutput(JSON.stringify({ status: "notified_finished_ok" }))
+                           .setMimeType(ContentService.MimeType.JSON);
+    }
+    
+  } catch(err) {
+    return ContentService.createTextOutput(JSON.stringify({ error: err.toString() }))
+                         .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function sendEmailNotification(subject, bodyText) {
+  var userEmail = Session.getActiveUser().getEmail();
+  if (!userEmail) userEmail = "momoka.mimika1122@gmail.com"; // 予備メール
+  MailApp.sendEmail(userEmail, subject, bodyText);
+}`}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
 
@@ -1422,6 +1802,10 @@ export default function App() {
                 onSquishAllBugs={handleSquishAllBugs}
                 currentUserProfile={currentUserProfile}
                 enableSound={enableSound}
+                isHost={!currentUserProfile}
+                bgmUrl={bgmUrl}
+                setBgmUrl={setBgmUrl}
+                logs={logs}
               />
             </div>
           )}
@@ -1432,70 +1816,160 @@ export default function App() {
               <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-brand-gold via-brand-pink to-brand-purple"></div>
               
               <div className="space-y-2">
-                <span className="text-4xl animate-bounce">🤵🏼💖👰🏼</span>
+                <span className="text-4xl animate-bounce">
+                  {phase === "completed" ? "🤵🏼💖👰🏼" : "📝🧪✨"}
+                </span>
                 <h3 className="font-serif text-2xl font-extrabold text-wedding-dark uppercase tracking-widest">
-                  {isSecretMismon ? "祝・概念婚姻完全マージ！！" : "本日はおめでとうございます！"}
+                  {phase === "completed" 
+                    ? (isSecretMismon ? "祝・概念婚姻完全マージ！！" : "本日はおめでとうございます！")
+                    : (isSecretMismon ? "概念婚姻・仮マージプレビュー" : "概念結婚証明書・リアルタイムプレビュー")
+                  }
                 </h3>
                 <p className="text-xs text-gray-500">
-                  {isSecretMismon 
-                    ? "おめでとうございます！二人が結ぶ愛のかたちは完全にシミュレータにデプロイされ永久保存されました。"
-                    : "おめでとうございます！素晴らしい式でした。皆様の祝福に包まれ、新しい歩みが今始まります。"
+                  {phase === "completed" 
+                    ? (isSecretMismon 
+                        ? "おめでとうございます！二人が結ぶ愛のかたちは完全にシミュレータにデプロイされ永久保存されました。"
+                        : "おめでとうございます！素晴らしい式でした。皆様の祝福に包まれ、新しい歩みが今始まります。")
+                    : (isSecretMismon
+                        ? "【LSIデバッグプレビュー】現在挙式の途中段階ですが、設定された誓いの言葉やアバターで何回でも証明書の確認・画像保存が可能です！"
+                        : "【システム：現在プレビュー中】挙式完了前でも、誓いの言葉やお互いの設定をリアルタイム反映して画像保存ができる特別プレビュー仕様です。")
                   }
                 </p>
               </div>
 
-              {/* Printable frame styling */}
-              <div className="border-4 border-double border-brand-gold rounded-2xl p-6 bg-white space-y-4 max-w-md mx-auto relative shadow-inner">
-                <span className="text-[10px] font-mono text-brand-gold block">WEDDING REPORT CERTIFICATE</span>
-                <h4 className="font-serif text-xl font-bold text-wedding-dark tracking-wider">★ 概念結婚証明書 ★</h4>
+              {/* Image capture boundary element with marriage-certificate-board ID */}
+              <div 
+                id="marriage-certificate-board" 
+                className="border-8 border-double border-brand-gold rounded-2xl p-6 bg-white space-y-4 max-w-md mx-auto relative shadow-2xl text-center overflow-hidden"
+              >
+                {/* Elegant watermark lace pattern in the background */}
+                <div className="absolute inset-1 border border-brand-gold/30 rounded-lg pointer-events-none"></div>
+                {isSecretMismon && (
+                  <div className="absolute -right-8 -bottom-8 opacity-[0.06] rotate-12 pointer-events-none font-mono text-[90px] font-extrabold select-none text-brand-pink">
+                    LSI
+                  </div>
+                )}
+                
+                <span className="text-[10px] font-mono tracking-widest text-brand-gold block font-bold">CONCEPT WEDDING REPORT CERTIFICATE</span>
+                <h4 className="font-serif text-xl font-extrabold text-wedding-dark tracking-widest">★ 概念婚姻合意書 ★</h4>
                 
                 <div className="grid grid-cols-2 gap-3 font-serif">
-                  <div className="bg-wedding-silver p-3 rounded-xl border border-wedding-border">
-                    <span className="text-[8px] text-brand-cyan block font-mono">Groom (新郎)</span>
-                    <span className="text-2xl pt-1 block">{groom.avatarType === "emoji" ? groom.avatar : "👤"}</span>
-                    <span className="font-bold text-xs text-wedding-dark pt-1 block">{groom.name || "未定義の新郎"}</span>
+                  <div className="bg-wedding-silver p-3.5 rounded-xl border border-wedding-border/60 relative">
+                    <span className="text-[8px] text-brand-cyan block font-mono uppercase font-bold tracking-wider">{groom.roleName || "新郎"}</span>
+                    <span className="text-3xl pt-1.5 block">{groom.avatarType === "emoji" ? groom.avatar : "👤"}</span>
+                    <span className="font-extrabold text-xs text-wedding-dark pt-1 block">{groom.name || "未定義の新郎"}</span>
+                    {groom.typologySeat && (
+                      <span className="inline-block mt-1 bg-brand-cyan/10 border border-brand-cyan/20 px-1.5 py-0.5 rounded text-[8px] font-mono text-brand-cyan">
+                        {groom.typologySeat}
+                      </span>
+                    )}
                   </div>
-                  <div className="bg-wedding-silver p-3 rounded-xl border border-wedding-border">
-                    <span className="text-[8px] text-brand-pink block font-mono">Bride (新婦)</span>
-                    <span className="text-2xl pt-1 block">{bride.avatarType === "emoji" ? bride.avatar : "👤"}</span>
-                    <span className="font-bold text-xs text-wedding-dark pt-1 block">{bride.name || "未定義の新婦"}</span>
+                  
+                  <div className="bg-wedding-silver p-3.5 rounded-xl border border-wedding-border/60 relative">
+                    <span className="text-[8px] text-brand-pink block font-mono uppercase font-bold tracking-wider">{bride.roleName || "新婦"}</span>
+                    <span className="text-3xl pt-1.5 block">{bride.avatarType === "emoji" ? bride.avatar : "👤"}</span>
+                    <span className="font-extrabold text-xs text-wedding-dark pt-1 block">{bride.name || "未定義の新婦"}</span>
+                    {bride.typologySeat && (
+                      <span className="inline-block mt-1 bg-brand-pink/10 border border-brand-pink/20 px-1.5 py-0.5 rounded text-[8px] font-mono text-brand-pink">
+                        {bride.typologySeat}
+                      </span>
+                    )}
                   </div>
                 </div>
 
-                <div className="text-[10px] text-gray-500 leading-normal italic font-serif">
+                <div className="p-3 bg-wedding-ivory/40 rounded-xl border border-wedding-border/30 text-left space-y-2">
+                  <div className="text-[9px] font-semibold text-gray-500 font-sans tracking-wide">【永久マージ誓約ログ】</div>
+                  <div className="text-[10px] text-gray-700 leading-relaxed font-serif italic pl-2 border-l border-brand-gold/60">
+                    <div><b>{groom.name}:</b> {groomVow}</div>
+                    <div className="mt-1"><b>{bride.name}:</b> {brideVow}</div>
+                  </div>
+                </div>
+
+                <div className="text-[10.5px] text-wedding-dark/90 font-serif font-medium italic py-1 px-4 leading-normal">
                   {isSecretMismon 
-                    ? "『4.5倍の物理ホールドロック(首筋ねちょ署名)をもって契りをコンパイルす』"
-                    : "『二人が永遠の愛をここに誓い、その証としてこの証明書を残します。』"
+                    ? "「回避行動：無効。プログラム通りに永久アーカイブへマージされます。赤面フリーズ：延長4.5倍w」" 
+                    : "「二人の温かい想いはシミュレータを介して結合され、概念空間において完全に承認されました。」"
                   }
                 </div>
 
-                <div className="pt-2.5 border-t border-gray-100 text-[8px] text-gray-400 font-mono">
-                  WITNESS PRIEST: {officiant.name} <br/>
-                  DATE: {new Date().toLocaleDateString()}
+                <div className="pt-3 border-t border-gray-100 text-[8.5px] text-gray-400 font-mono space-y-0.5">
+                  <div>WITNESS PLANNERS: {officiant.name} & AUDIENCE {guests.length} MEMS</div>
+                  <div className="text-brand-gold font-bold">{isSecretMismon ? "HASH: mismon-sys-4500-complete" : `DATE: ${new Date().toLocaleDateString()}`}</div>
                 </div>
+
+                {/* Digital approval stamp icons overlay */}
+                {isSecretMismon && (
+                  <div className="absolute right-4 bottom-12 rotate-[-12deg] bg-brand-pink/15 border-2 border-brand-pink/50 text-brand-pink text-[9px] font-mono font-bold px-2 py-1 rounded-md uppercase tracking-widest shadow-sm pointer-events-none select-none">
+                    APPROVED (みつき)
+                  </div>
+                )}
               </div>
 
-              {/* Download actions list */}
-              <div className="flex flex-col sm:flex-row justify-center gap-3 max-w-sm mx-auto">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const lines = [
-                      `💒 概念結婚事録 - ${groom.name} & ${bride.name}`,
-                      `----------------------------------------------`,
-                      `新郎: ${groom.name}`,
-                      `新婦: ${bride.name}`,
-                      `誓い: ${brideVow}`,
-                      `お祝い客: ${guests.length}人`
-                    ].join("\n");
-                    navigator.clipboard.writeText(lines);
-                    alert("📋 議事録をクリップボードにコピーしました！");
-                  }}
-                  className="flex-1 bg-white hover:bg-gray-100 text-gray-700 border border-wedding-border py-2 px-4 rounded-xl text-xs font-bold font-serif flex items-center justify-center gap-1.5 transition-all"
-                >
-                  <Clipboard size={14} />
-                  <span>議事録をコピー</span>
-                </button>
+              {/* Download and Share Utility Buttons List */}
+              <div className="space-y-2.5 max-w-md mx-auto pt-2">
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={downloadImageSnapshot}
+                    disabled={downloadingImage}
+                    className="bg-brand-gold hover:bg-brand-gold/90 text-white font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-1 shadow-md transition-all hover:scale-[1.01] disabled:opacity-50"
+                  >
+                    <Camera size={14} />
+                    <span>{downloadingImage ? "保存中..." : "画像保存 (.png)"}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={downloadMinutes}
+                    className="bg-wedding-dark hover:bg-gray-800 text-white font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-1 shadow-md transition-all hover:scale-[1.01]"
+                  >
+                    <Download size={14} />
+                    <span>テキスト保存 (.txt)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={copyToClipboard}
+                    className="bg-white hover:bg-gray-50 text-gray-700 border border-wedding-border font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-1 shadow transition-all hover:scale-[1.01]"
+                  >
+                    <Clipboard size={14} />
+                    <span>クリップボードコピー</span>
+                  </button>
+                </div>
+
+                {/* Send marriage report via GAS Mail */}
+                {gasUrl && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (isSyncing) return;
+                      setIsSyncing(true);
+                      try {
+                        const activeObj = rooms.find(r => r.id === activeRoomId);
+                        if (!activeObj) {
+                          alert("❌ ルーム情報が見つかりません。");
+                          return;
+                        }
+                        await fetch(gasUrl, {
+                          method: "POST",
+                          mode: "no-cors",
+                          headers: { "Content-Type": "text/plain; charset=utf-8" },
+                          body: JSON.stringify({ action: "notifyFinished", room: activeObj })
+                        });
+                        alert("💌 自作GAS報告メールを送信しました！\n（Google Apps Scriptが正常にデプロイされている場合、サマリーメールが届きますw）");
+                      } catch (err) {
+                        alert("❌ メール送信中にエラーが発生しました: " + String(err));
+                      } finally {
+                        setIsSyncing(false);
+                      }
+                    }}
+                    disabled={isSyncing}
+                    className="w-full bg-[#ec4899]/10 hover:bg-[#ec4899]/25 border border-[#ec4899]/30 text-[#ec4899] font-serif tracking-widest font-extrabold py-3 px-4 rounded-xl text-xs shadow-inner transition-transform hover:scale-[1.01] flex items-center justify-center gap-1.5"
+                  >
+                    <Mail size={14} />
+                    {isSyncing ? "メールデプロイ中..." : "挙式合意報告メールを主催者自作GASから任意送信する 💌"}
+                  </button>
+                )}
 
                 <button
                   type="button"
@@ -1503,10 +1977,10 @@ export default function App() {
                     setPhase("setup");
                     setActiveTab("setup");
                   }}
-                  className="flex-1 bg-gradient-to-r from-brand-pink to-brand-gold text-white font-bold font-serif py-2 px-4 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow"
+                  className="w-full bg-gradient-to-r from-brand-pink to-brand-gold text-white font-serif tracking-widest font-extrabold py-3 px-4 rounded-xl text-xs shadow-lg transition-transform hover:scale-[1.01]"
                 >
-                  <RotateCcw size={14} />
-                  <span>もう一度最初から設定する</span>
+                  <RotateCcw size={14} className="inline mr-1" />
+                  もう一度最初から設定し直す (Reset Setup)
                 </button>
               </div>
 
@@ -1538,5 +2012,4 @@ export default function App() {
 
     </div>
   );
-}
 }

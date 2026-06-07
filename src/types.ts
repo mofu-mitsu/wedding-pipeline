@@ -60,10 +60,11 @@ export type WeddingPhase =
   | "opening"    // "新郎・新婦、入場です！"
   | "vows"       // "誓いの言葉"
   | "rings"      // "指輪の交換" (or 物理ホールドロック)
+  | "kiss"       // "誓いのキス"
   | "applause"   // "拍手喝采"
   | "reception"  // 披露宴
-  | "completed"  // 式終了
-  | "afterparty"; // アフターパーティー
+  | "afterparty" // アフターパーティー
+  | "completed"; // 式終了
 
 export interface WeddingRoom {
   id: string; // The Passcode / Room ID (e.g., "jemi-kawaii", "mitsu-mon")
@@ -78,6 +79,7 @@ export interface WeddingRoom {
   phase: WeddingPhase;
   systemGage: SystemGage;
   logs: WeddingLog[];
+  bgmUrl?: string; // Optional BGM url
 }
 
 

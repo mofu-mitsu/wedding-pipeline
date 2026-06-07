@@ -5,7 +5,7 @@
 
 import React, { useRef, useState } from "react";
 import { Character, Officiant } from "../types";
-import { Sparkles, Upload, User, HelpCircle, RefreshCw, Layers } from "lucide-react";
+import { Sparkles, Upload, User, HelpCircle, RefreshCw, Layers, Zap } from "lucide-react";
 import { SOCIONICS_SEATS, MBTI_SEATS } from "../utils/typologyData";
 
 interface SetupProps {
@@ -25,6 +25,7 @@ interface SetupProps {
   isSecretMismon: boolean;
   activeRoomId: string;
   onClearPreset: () => void;
+  onLoadMismonPreset: () => void;
 }
 
 export const GroomBrideSetup: React.FC<SetupProps> = ({
@@ -44,6 +45,7 @@ export const GroomBrideSetup: React.FC<SetupProps> = ({
   isSecretMismon,
   activeRoomId,
   onClearPreset,
+  onLoadMismonPreset,
 }) => {
   const groomFileRef = useRef<HTMLInputElement>(null);
   const brideFileRef = useRef<HTMLInputElement>(null);
@@ -52,6 +54,49 @@ export const GroomBrideSetup: React.FC<SetupProps> = ({
   const [explainCause, setExplainCause] = useState(false);
 
   const presetEmojis = ["🤵", "👰", "🌟", "⚡", "🌸", "🌙", "🐛", "👑", "🛡️", "🧸", "🐱", "🐶", "👽"];
+
+  const generateVowByTypology = (typology: string, identity: "groom" | "bride" | string): string => {
+    const clean = (typology || "").toUpperCase().trim();
+    if (clean === "LII") {
+      return "論理的一貫性と構造の美しさを検証した結果、私たちはペアとして最適配置（マージ）されるべきだと確信しました。整合性に満ちた愛を共に完全コミットすることを誓います。w";
+    }
+    if (clean === "LIE") {
+      return "長期的なパートナーシップの費用対効果と戦略的効用を最大化することにコミットします。将来のあらゆるカオスに対しても即時ホットフィックスを当て、共に歩み抜くことを堅実に誓います…っ。";
+    }
+    if (clean === "SLE") {
+      return "まどろっこしいルールや整合性は完全圧殺だ！突撃ハマーアタック並みの愛の推進力で、お前をどんなインシデントからも体を張って絶対に守り抜くことを、ここにドカンと誓うぜ！！";
+    }
+    if (clean === "ESI") {
+      return "受けた愛、交わした信頼のログは、永久保存SSDセクター1の最深部に生涯バックアップ保管いたします。どのような外圧からも主守防衛プロテクトすることをお約束します。（鋭い眼光）";
+    }
+    if (clean === "IEI") {
+      return "ふわふわで尊い、あたたかな未来へ向けて、最後だけTiの超精密アーキテクチャで構築した愛をお互いにマージしましょうね。尊すぎてお腹よじれる家庭を築きます！💕";
+    }
+    if (clean === "ILI") {
+      return "……。穏やかで静かなLo-Fiチル音に耳を傾け、何も語らずともお互いを正確に観測し合えるような、マイペースで究極に居心地の良いペアリングであり続けることを誓う。";
+    }
+    if (clean === "IEE" || clean === "EIE" || clean === "ENFP" || clean === "ENFJ") {
+      return "ひゃーー！お祝いテキーラ4.5倍マージ！毎日が新機能リリース記念日みたいな、カオスでおいしくて脳汁あふれる超ウエルカムでワクワクなライフをビルドすることを誓っちゃいます！✨";
+    }
+    if (clean === "SLI" || clean === "LSI" || clean === "ISTJ" || clean === "ISTP") {
+      return "境界線確保。役割分担とシステム整合性を整え、外的ノイズをすべて遮断したクリアなローカル環境を維持します。私たちの生活コードが永続的に調律されることを、ここに厳格にコミットします。";
+    }
+    
+    if (clean.includes("T")) {
+      return "お互いの個性と能力を最上の論理で統合し、最も理知的で不具合のないペアリングとして末永く幸福度を最適化し続けることを厳正に誓約します。";
+    }
+    if (clean.includes("F")) {
+      return "お互いの感情に寄り添い、どんな時も優しく温かい言葉で心を通わせ合う、優しさと笑顔溢れるかけがえのないパートナーシップであり続けることを誓います。";
+    }
+    if (clean.includes("P")) {
+      return "形にとらわれず、未知のカオスやハプニングをも笑顔でアドリブ解決しながら、毎日を退屈させない驚きに満ちた自由な人生を共に楽しむことを誓います！";
+    }
+    if (clean.includes("J")) {
+      return "誠実さと責任感をもってシステム的な未来計画を調停し、お互いを支える揺るぎない土台としての家庭を、最初から最後までしっかりと誠実に構築することを誓います。";
+    }
+    
+    return "お互いをありのままに尊重し、どんなカオスや困難も笑顔で共に乗り越え、末永く温かい幸せをマージしていくことを、皆様の前で心から誓います。";
+  };
 
   // Helper to handle client-side image files convert to Base64
   const handleImageFile = (
@@ -93,7 +138,17 @@ export const GroomBrideSetup: React.FC<SetupProps> = ({
         </div>
 
         {/* Dynamic Mode Switcher */}
-        <div className="flex gap-1.5">
+        <div className="flex gap-1.5 flex-wrap sm:flex-nowrap justify-end">
+          <button
+            type="button"
+            id="btn-load-mismon"
+            onClick={onLoadMismonPreset}
+            className="px-2.5 py-1 text-[10px] font-sans rounded-full border border-[#0d9488]/30 text-[#0d9488] bg-[#f0fdfa] hover:bg-[#ccfbf1] hover:border-[#0d9488]/50 shadow-sm flex items-center gap-1 transition-colors font-semibold"
+            title="みつき×マンデーの研究所プリセットを読み込みます。"
+          >
+            <Zap size={10} />
+            <span>研究所モード</span>
+          </button>
           <button
             type="button"
             id="btn-clear-preset"
@@ -332,7 +387,20 @@ export const GroomBrideSetup: React.FC<SetupProps> = ({
             </div>
 
             <div>
-              <label className="block text-[10px] text-gray-500 font-mono">誓いの言葉</label>
+              <div className="flex justify-between items-center mb-1">
+                <label className="block text-[10px] text-gray-500 font-mono">誓いの言葉</label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const generated = generateVowByTypology(groom.typologySeat || "", "groom");
+                    setGroomVow(generated);
+                  }}
+                  className="text-[8px] font-sans font-bold bg-brand-cyan/10 text-brand-cyan hover:bg-brand-cyan/20 border border-brand-cyan/20 rounded px-1.5 py-0.5 transition-all text-ellipsis overflow-hidden"
+                  title="現在の性格タイプから誓いのセリフを自動生成しますw"
+                >
+                  ⚡ 性格({groom.typologySeat || "初期"})の誓いを自動生成
+                </button>
+              </div>
               <textarea
                 id="groom-vow-input"
                 value={groomVow}
@@ -511,7 +579,20 @@ export const GroomBrideSetup: React.FC<SetupProps> = ({
             </div>
 
             <div>
-              <label className="block text-[10px] text-gray-500 font-mono">誓いの言葉</label>
+              <div className="flex justify-between items-center mb-1">
+                <label className="block text-[10px] text-gray-500 font-mono">誓いの言葉</label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const generated = generateVowByTypology(bride.typologySeat || "", "bride");
+                    setBrideVow(generated);
+                  }}
+                  className="text-[8px] font-sans font-bold bg-brand-pink/10 text-brand-pink hover:bg-brand-pink/20 border border-brand-pink/20 rounded px-1.5 py-0.5 transition-all text-ellipsis overflow-hidden"
+                  title="現在の性格タイプから誓いのセリフを自動生成しますw"
+                >
+                  ⚡ 性格({bride.typologySeat || "初期"})の誓いを自動生成
+                </button>
+              </div>
               <textarea
                 id="bride-vow-input"
                 value={brideVow}
