@@ -109,12 +109,14 @@ export default function App() {
     certElement.style.width = "448px";
     certElement.style.boxShadow = "none";
 
+    // 🌟 一瞬だけ待機して、ブラウザにリフロー(レイアウトの再計算)とBase64画像のデコード・描画を100%確定させる！
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
     try {
       // 🚀 完全にフラット＆ジャストサイズな描画範囲を強制指定してPNG化！
       const dataUrl = await toPng(certElement, {
         pixelRatio: 2.5, // 2.5倍の超美麗・超美細高解像度でエッジを滑らかにw
         backgroundColor: "#fcf8f2", // 最上のアイボリーカラーの台紙
-        cacheBust: true,
         skipFonts: true, // Google Fonts等のCORSエラー(cssRulesプロパティ読み込み制限)を安全に回避！
         width: 448, // ぴったり 448px 横幅で正確無比に切りぬく
         height: certElement.offsetHeight, // 縦幅は実寸
