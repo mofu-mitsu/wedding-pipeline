@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Character,
   Guest,
@@ -236,6 +236,9 @@ export default function App() {
   const [gasUrl, setGasUrl] = useState(() => DEFAULT_GAS_URL || "");
   const [isSyncing, setIsSyncing] = useState(false);
 
+  // 🌟 部屋切り替え中の過渡期上書き保存バグを防ぐ超重要フラグ！
+  const isSwitchingRoomRef = useRef(false);
+
   // 2. Secret Check
   const isSecretMismon = activeRoomId === "jemi-kawaii";
 
@@ -293,7 +296,8 @@ export default function App() {
     if (!activeGasUrl || !roomId) return null;
     try {
       const cleanCode = roomId.toLowerCase();
-      const res = await fetch(`${activeGasUrl}?action=getRoom&id=${cleanCode}`);
+      // 🌟 &_t キャッシュバスターを付与することで、Safariなどの強力なブラウザ内キャッシュを破砕！
+      const res = await fetch(`${activeGasUrl}?action=getRoom&id=${cleanCode}&_t=${Date.now()}`);
       if (res.ok) {
         const data = await res.json();
         if (data && !data.error) {
@@ -583,41 +587,55 @@ export default function App() {
     }
   }, [phase]);
 
-  // Hook 1: Load initial rooms config & active room state on Mount
+  // Hook 0: Load initial rooms config from LocalStorage on Mount
   useEffect(() => {
     const savedRoomsStr = localStorage.getItem("concept_wedding_rooms_v4");
     const savedActiveId = localStorage.getItem("concept_wedding_active_room_id_v4");
-    
     if (savedRoomsStr) {
       try {
         const parsedRooms = JSON.parse(savedRoomsStr) as WeddingRoom[];
         setRooms(parsedRooms);
-        
         if (savedActiveId) {
-          const activeRoom = parsedRooms.find((r) => r.id === savedActiveId);
-          if (activeRoom) {
-            setActiveRoomId(savedActiveId);
-            setGroom(activeRoom.groom);
-            setBride(activeRoom.bride);
-            setOfficiant(activeRoom.officiant);
-            setGroomVow(activeRoom.groomVow);
-            setBrideVow(activeRoom.brideVow);
-            setGuests(activeRoom.guests || []);
-            setPhase(activeRoom.phase);
-            setSystemGage(activeRoom.systemGage);
-            setLogs(activeRoom.logs || []);
-            setChats(activeRoom.chats || []);
-          }
+          setActiveRoomId(savedActiveId);
         }
       } catch (e) {
-        console.warn("Failed to load initial wedding configuration from local storage", e);
+        console.warn("Failed to load initial rooms config on Mount", e);
       }
     }
   }, []);
 
+  // Hook 1: 部屋切り替え(activeRoomId)やrooms変更検知時の、各Stateへの完全一括同期ロード
+  useEffect(() => {
+    if (!activeRoomId) return;
+    const targetRoom = rooms.find((r) => r.id === activeRoomId);
+    if (!targetRoom) return;
+
+    // 🌟 これから部屋を切り替えるため、一時的に自動保存(Hook 2)を100%遮断する！！！
+    isSwitchingRoomRef.current = true;
+
+    setGroom((existing) => JSON.stringify(existing) !== JSON.stringify(targetRoom.groom) ? targetRoom.groom : existing);
+    setBride((existing) => JSON.stringify(existing) !== JSON.stringify(targetRoom.bride) ? targetRoom.bride : existing);
+    setOfficiant((existing) => JSON.stringify(existing) !== JSON.stringify(targetRoom.officiant) ? targetRoom.officiant : existing);
+    setGroomVow((existing) => existing !== targetRoom.groomVow ? targetRoom.groomVow : existing);
+    setBrideVow((existing) => existing !== targetRoom.brideVow ? targetRoom.brideVow : existing);
+    setGuests((existing) => JSON.stringify(existing) !== JSON.stringify(targetRoom.guests) ? targetRoom.guests || [] : existing);
+    setPhase((existing) => existing !== targetRoom.phase ? targetRoom.phase : existing);
+    setSystemGage((existing) => JSON.stringify(existing) !== JSON.stringify(targetRoom.systemGage) ? targetRoom.systemGage : existing);
+    setLogs((existing) => JSON.stringify(existing) !== JSON.stringify(targetRoom.logs) ? targetRoom.logs || [] : existing);
+    setChats((existing) => JSON.stringify(existing) !== JSON.stringify(targetRoom.chats) ? targetRoom.chats || [] : existing);
+
+    // Reactのレンダリング確定とStateデプロイが終わった頃合い（50ms）でガードを解除！
+    const timer = setTimeout(() => {
+      isSwitchingRoomRef.current = false;
+    }, 50);
+    return () => clearTimeout(timer);
+  }, [activeRoomId, rooms]);
+
   // Hook 2: Synchronize state changes back to the active room list dynamically
   useEffect(() => {
     if (!activeRoomId) return;
+    if (isSwitchingRoomRef.current) return; // 🌟 部屋切り替え過渡期は上書きを鉄壁ガード！
+
     setRooms((prev) => {
       const existing = prev.find((r) => r.id === activeRoomId);
       if (!existing) return prev;
@@ -693,6 +711,7 @@ export default function App() {
   useEffect(() => {
     if (!activeRoomId) return;
     if (currentUserProfile) return; // 参列ゲストはホストの設定を勝手に壊さないようガード！
+    if (isSwitchingRoomRef.current) return; // 🌟 部屋切り替え過渡期は保存を完全スキップ！
 
     const activeRoom = rooms.find((r) => r.id === activeRoomId);
     if (!activeRoom) return;
@@ -868,21 +887,21 @@ export default function App() {
     if (enableSound) sfx.playCheerSound();
 
     let modifiedRoomsList = [...rooms];
-    let targetRoom = modifiedRoomsList.find((r) => r.id === codeClean);
+    // 🌟 スマホ参列時などはローカルキャッシュに頼らず、常にGAS（クラウド）から最新の本番データを完全ゲットする！
+    let targetRoom = undefined;
 
-    const activeGasUrl =
-      DEFAULT_GAS_URL ||
-      "https://script.google.com/macros/s/AKfycbyI8-0Qjh5PJAx4qsWWfaViH9kglGGRd9sSU9VouXD53xX4cO4Eo_dNhldtvqpEOqvoEg/exec";
-    if (!targetRoom && activeGasUrl) {
+    const activeGasUrl = gasUrl || DEFAULT_GAS_URL;
+    if (activeGasUrl) {
       try {
         const res = await fetch(
-          `${activeGasUrl}?action=getRoom&id=${codeClean}`,
+          `${activeGasUrl}?action=getRoom&id=${codeClean}&_t=${Date.now()}`,
         );
         if (res.ok) {
           const data = await res.json();
           if (data && !data.error) {
             targetRoom = data as WeddingRoom;
-            modifiedRoomsList.push(targetRoom);
+            const filtered = modifiedRoomsList.filter((r) => r.id !== codeClean);
+            modifiedRoomsList = [...filtered, targetRoom];
             setRooms(modifiedRoomsList);
             localStorage.setItem(
               "concept_wedding_rooms_v4",
@@ -893,6 +912,11 @@ export default function App() {
       } catch (err) {
         console.warn("GAS fetch room on remote join error", err);
       }
+    }
+
+    // 🌟 GASから取得できなかった場合のみ、ローカル内の既存の部屋データをフォールバックとして使用
+    if (!targetRoom) {
+      targetRoom = rooms.find((r) => r.id === codeClean);
     }
 
     if (!targetRoom && codeClean === "jemi-kawaii") {
