@@ -80,6 +80,7 @@ export interface WeddingRoom {
   systemGage: SystemGage;
   logs: WeddingLog[];
   bgmUrl?: string; // Optional BGM url
+  chats?: RealtimeChat[]; // Make chats synchronized via GAS
 }
 
 

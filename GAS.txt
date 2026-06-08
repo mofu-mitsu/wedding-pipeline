@@ -32,7 +32,10 @@ function doGet(e) {
 function doPost(e) {
   try {
     const postData = JSON.parse(e.postData.contents);
-    if (postData.action === 'saveRoom') {
+    const action = postData.action;
+    
+    // 1. 部屋状態の自動保存。ここでは【絶対に】メールを送信しない（不要な通知爆撃を100%防止する）
+    if (action === 'saveRoom') {
       const room = postData.room;
       const roomId = room.id;
       const sheet = initSheet();
@@ -48,18 +51,53 @@ function doPost(e) {
       
       if (rowIndex === -1) {
         sheet.appendRow([roomId, JSON.stringify(room), new Date().toISOString()]);
-        // 新しい部屋が作成・保存されたらメール通知
-        MailApp.sendEmail({
-          to: NOTIFY_EMAIL,
-          subject: `新しいウェディングルームが作成/保存されました: ${roomId}`,
-          body: `合言葉: ${roomId}\n名前: ${room.name}\n\nシステム共有ハブより`
-        });
       } else {
         sheet.getRange(rowIndex, 2).setValue(JSON.stringify(room));
         sheet.getRange(rowIndex, 3).setValue(new Date().toISOString());
       }
       return ContentService.createTextOutput(JSON.stringify({success: true})).setMimeType(ContentService.MimeType.JSON);
     }
+    
+    // 2. 部屋の新規作成通知（1回きり）
+    if (action === 'notifyCreate') {
+      const room = postData.room;
+      const roomId = room.id;
+      const hostName = room.hostName || "匿名";
+      MailApp.sendEmail({
+        to: NOTIFY_EMAIL,
+        subject: `【概念結婚式】新規ルームが作成されました: ${roomId}`,
+        body: `合言葉 (Room ID): ${roomId}\nルーム名: ${room.name}\n主催者: ${hostName}\n作成日時: ${new Date().toLocaleString()}\n\nシステム共有ハブより 💒`
+      });
+      return ContentService.createTextOutput(JSON.stringify({success: true, message: 'notifyCreate ok'})).setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    // 3. 挙式完了/合意報告通知（1回きり）
+    if (action === 'notifyFinished') {
+      const room = postData.room;
+      const roomId = room.id;
+      const reportDate = new Date().toLocaleString();
+      MailApp.sendEmail({
+        to: NOTIFY_EMAIL,
+        subject: `🤵🏼💖👰🏼【概念婚姻完全マージ完了！】祝福報告: ${room.name}`,
+        body: `おめでとうございます！本日、新郎新婦の相思相愛ロジックが永久保存アーカイブへ完全にマージされました！🎉\n\n` +
+              `■ 基本情報\n` +
+              `・お部屋名: ${room.name}\n` +
+              `・招待合言葉: ${roomId}\n` +
+              `・報告日付: ${reportDate}\n` +
+              `・式場進行: 挙式完全マージ完了（completed）\n\n` +
+              `■ 新郎様プロフィール\n` +
+              `・お名前: ${room.groom.name || "未設定"} (役割: ${room.groom.roleName || "新郎"}、タイプ: ${room.groom.typologySeat || "未設定"})\n` +
+              `・誓いの言葉: 「${room.groomVow}」\n\n` +
+              `■ 新婦様プロフィール\n` +
+              `・お名前: ${room.bride.name || "未設定"} (役割: ${room.bride.roleName || "新婦"}、タイプ: ${room.bride.typologySeat || "未設定"})\n` +
+              `・誓いの言葉: 「${room.brideVow}」\n\n` +
+              `■ 式典の証人・仲介者: ${room.officiant.name} ＆ 参列客: ${room.guests.length}名\n\n` +
+              `二人が結ぶ愛のかたちは完全にシミュレータにデプロイされ永久保存されました。お幸せに！w\n` +
+              `みつき開発室システム共有ハブより 💌`
+      });
+      return ContentService.createTextOutput(JSON.stringify({success: true, message: 'notifyFinished ok'})).setMimeType(ContentService.MimeType.JSON);
+    }
+    
   } catch(err) {
     return ContentService.createTextOutput(JSON.stringify({error: err.toString()})).setMimeType(ContentService.MimeType.JSON);
   }
