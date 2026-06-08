@@ -1598,7 +1598,13 @@ export const CeremonyStage: React.FC<StageProps> = ({
               return (
                 <div key={c.id} className="flex items-start gap-1 text-[10px]">
                   <span className="text-gray-500 text-[8px] select-none">[{c.timestamp}]</span>
-                  <span className="text-gray-200 select-none">{c.avatar}</span>
+                  {c.avatar && (c.avatar.startsWith("data:") || c.avatar.startsWith("http") || c.avatar.startsWith("/")) ? (
+                    <div className="w-4 h-4 rounded-full overflow-hidden shrink-0 border border-slate-700 bg-slate-900 flex items-center justify-center select-none">
+                      <img src={c.avatar} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    </div>
+                  ) : (
+                    <span className="text-gray-200 select-none">{c.avatar}</span>
+                  )}
                   <span className="text-slate-400 font-extrabold shrink-0 truncate max-w-[80px]" title={c.sender}>
                     {c.sender}:
                   </span>

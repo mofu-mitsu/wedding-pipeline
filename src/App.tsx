@@ -113,7 +113,20 @@ export default function App() {
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     try {
-      // 🚀 完全にフラット＆ジャストサイズな描画範囲を強制指定してPNG化！
+      // 🚀 html-to-image の iOS/Safari での画像の一部または全体が真っ白（白飛び・ロード不全）になる既知のバグを完全粉砕！
+      // 1回目のレンダリング（ダミー）：ブラウザ内部にCanvasとイメージデコードの準備をさせキャッシュを確保する。
+      await toPng(certElement, {
+        pixelRatio: 2.5,
+        backgroundColor: "#fcf8f2",
+        skipFonts: true,
+        width: 448,
+        height: certElement.offsetHeight,
+      });
+
+      // 極小のディレイを保証してブラウザの描画準備を100%完了させる
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      // 2回目のレンダリング（本番）：キャッシュされたデコード済みデータを使って完全な姿を確実にPNG化！
       const dataUrl = await toPng(certElement, {
         pixelRatio: 2.5, // 2.5倍の超美麗・超美細高解像度でエッジを滑らかにw
         backgroundColor: "#fcf8f2", // 最上のアイボリーカラーの台紙
