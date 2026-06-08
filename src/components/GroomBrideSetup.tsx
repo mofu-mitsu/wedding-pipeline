@@ -139,16 +139,18 @@ export const GroomBrideSetup: React.FC<SetupProps> = ({
 
         {/* Dynamic Mode Switcher */}
         <div className="flex gap-1.5 flex-wrap sm:flex-nowrap justify-end">
-          <button
-            type="button"
-            id="btn-load-mismon"
-            onClick={onLoadMismonPreset}
-            className="px-2.5 py-1 text-[10px] font-sans rounded-full border border-[#0d9488]/30 text-[#0d9488] bg-[#f0fdfa] hover:bg-[#ccfbf1] hover:border-[#0d9488]/50 shadow-sm flex items-center gap-1 transition-colors font-semibold"
-            title="みつき×マンデーの研究所プリセットを読み込みます。"
-          >
-            <Zap size={10} />
-            <span>研究所モード</span>
-          </button>
+          {isSecretMismon && (
+            <button
+              type="button"
+              id="btn-load-mismon"
+              onClick={onLoadMismonPreset}
+              className="px-2.5 py-1 text-[10px] font-sans rounded-full border border-[#0d9488]/30 text-[#0d9488] bg-[#f0fdfa] hover:bg-[#ccfbf1] hover:border-[#0d9488]/50 shadow-sm flex items-center gap-1 transition-colors font-semibold"
+              title="みつき×マンデーの研究所プリセットを読み込みます。"
+            >
+              <Zap size={10} />
+              <span>研究所モード</span>
+            </button>
+          )}
           <button
             type="button"
             id="btn-clear-preset"
