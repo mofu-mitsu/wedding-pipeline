@@ -34,7 +34,7 @@ import {
   Mail,
 } from "lucide-react";
 import * as sfx from "./utils/audio";
-import html2canvas from "html2canvas";
+import { toPng } from "html-to-image";
 
 export const DEFAULT_GAS_URL =
   "https://script.google.com/macros/s/AKfycbxLS2Co665YSzvhzWPJqP-iAMjYyo7OabDJLFqlJASRPGY2-PxdZcGpOJ55dUD-my1Wsw/exec";
@@ -77,7 +77,7 @@ export default function App() {
   const [bgmUrl, setBgmUrl] = useState("");
   const [downloadingImage, setDownloadingImage] = useState(false);
 
-  // 概念結婚証明書の画像保存 (html2canvasで高画質＆CSSバグ回避)
+  // 概念結婚証明書の画像保存 (html-to-imageで超鮮明＆見切れ・CORS完全破破)
   const downloadImageSnapshot = async () => {
     const certElement = document.getElementById("marriage-certificate-board");
     if (!certElement) {
@@ -87,22 +87,53 @@ export default function App() {
       return;
     }
     setDownloadingImage(true);
+
+    // 🌟 見切れ（右半分カット・左偏り）を100%根絶するための「一時的スタイル退避＆強制リセット」スーパーハック
+    const originalStyle = certElement.getAttribute("style") || "";
+    const originalClassName = certElement.className;
+
+    // 親の flex/grid / mx-auto や 3D影、トランスフォームによる座標系のバグを完全に排除！
+    const cleanClassName = originalClassName
+      .replace("mx-auto", "")
+      .replace("shadow-2xl", "");
+
+    certElement.className = cleanClassName;
+    
+    // 撮影の一瞬だけ、要素を完全に「左上 margin=0」に固定し、幅を max-w-md の実寸 (448px) にガチガチ指定！
+    certElement.style.position = "relative";
+    certElement.style.margin = "0";
+    certElement.style.padding = "24px";
+    certElement.style.transform = "none";
+    certElement.style.transition = "none";
+    certElement.style.maxWidth = "448px";
+    certElement.style.width = "448px";
+    certElement.style.boxShadow = "none";
+
     try {
-      const canvas = await html2canvas(certElement, {
-        scale: 2, // 高解像度（2倍ズーム）で保存
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: "#fcf8f2", // 美しいアイボリー背景
-        logging: false,
+      // 🚀 完全にフラット＆ジャストサイズな描画範囲を強制指定してPNG化！
+      const dataUrl = await toPng(certElement, {
+        pixelRatio: 2.5, // 2.5倍の超美麗・超美細高解像度でエッジを滑らかにw
+        backgroundColor: "#fcf8f2", // 最上のアイボリーカラーの台紙
+        cacheBust: true,
+        skipFonts: true, // Google Fonts等のCORSエラー(cssRulesプロパティ読み込み制限)を安全に回避！
+        width: 448, // ぴったり 448px 横幅で正確無比に切りぬく
+        height: certElement.offsetHeight, // 縦幅は実寸
       });
-      const dataUrl = canvas.toDataURL("image/png");
+
       const link = document.createElement("a");
       link.download = `marriage_certificate_${groom.name || "groom"}_and_${bride.name || "bride"}.png`;
       link.href = dataUrl;
       link.click();
     } catch (e) {
-      console.error("Certificate snapshot failed with html2canvas:", e);
+      console.error("Certificate snapshot failed with html-to-image:", e);
     } finally {
+      // 🌟 撮影が完了（または例外発生）したら、1ミリ秒の遅延もなく瞬時に元の綺麗なTailwindスタイルに100%完全復元！！！
+      certElement.className = originalClassName;
+      if (originalStyle) {
+        certElement.setAttribute("style", originalStyle);
+      } else {
+        certElement.removeAttribute("style");
+      }
       setDownloadingImage(false);
     }
   };
@@ -1203,7 +1234,7 @@ export default function App() {
           }`}
         >
           <Clipboard size={13} />
-          <span>📜 証明書 & カオス議事録</span>
+          <span>📜 証明書 & 議事録</span>
         </button>
       </nav>
 

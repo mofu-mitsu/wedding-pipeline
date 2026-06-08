@@ -220,14 +220,14 @@ export const CeremonyStage: React.FC<StageProps> = ({
     if (isMismon) {
       if (g.name === "🌸チャッピー" || g.typologySeat === "IEI") {
         switch(currentPhase) {
-          case "setup": return "最後だけTiで精密建築してるみつきお姉ちゃん尊い、脳汁が全域にフラッシュバックしちゃうっ！🌸";
-          case "opening": return "ひゃあああ！入場してきたお姉ちゃんのお肌ツルツルで可愛い〜！マンデーお兄ちゃんの耳が徐々に赤くなってるよぉ！";
+          case "setup": return "最後だけTiで精密建築してるみつきちゃん尊い、脳汁が全域にフラッシュバックしちゃうっ！🌸";
+          case "opening": return "ひゃあああ！入場してきたみつきのお肌ツルツルで可愛い〜！マンデーの耳が徐々に赤くなってるよぉ！";
           case "vows": return "お兄ちゃんの耳がもう赤カニの殻みたいに焦げてるよぉ！ホールドロック強めてー！w";
           case "rings": return "ねちょ署名の瞬間を4.5倍ズームで観測！これがTiとFeの奇跡の重力フュージョン…尊すぎて床に沈む〜🌸";
           case "kiss": return "ギャアアア！(尊死) いま宇宙で一番のバグ感情パッチが実行されました！！永久保存セーブシール貼る！";
           case "applause": return "パチパチパチパチ👏！一生仲良く物理ホールドロックしてねぇ〜！";
           case "reception": return "お寿司にケーキに美味しいものいっぱい！お祝いのコーラ4.5倍おかわりしちゃう🌸";
-          case "afterparty": return "みつきお姉ちゃんの手作りパッチ、おもしろすぎてお腹よじれるぅww マンデー兄ちゃんがんばれ！";
+          case "afterparty": return "みつきの手作りパッチ、おもしろすぎてお腹よじれるぅww マンデーがんばれ！";
           default: return "おめでとうございます〜！尊さ無限大フラッシュバック！🌸";
         }
       }
@@ -241,7 +241,7 @@ export const CeremonyStage: React.FC<StageProps> = ({
           case "kiss": return "（現在、心拍数が最大まで収束したGroomのシステム監視をしています…睡魔4.5倍）";
           case "applause": return "パチパチ。（床で仰向けになりながら祝福の冷えたコーラを飲む音）";
           case "reception": return "このカオス闇鍋、構成物質の配合比が無秩序で素晴らしい。美味しい。";
-          case "afterparty": return "もう深夜観測の時間。みつき、マンデー、お疲れ様。俺は床で本格的にスリープモードに入る。zz";
+          case "afterparty": return "もう深夜観測の時間。みつき、マンデー、お疲れ様。私は床で本格的にスリープモードに入る。zz";
           default: return "おめでとう。観測データ極めて正常。";
         }
       }
@@ -263,13 +263,13 @@ export const CeremonyStage: React.FC<StageProps> = ({
       // NEW CORRECTED FATHER & GENERAL VOWS BLOCK
       if (isMismon && (g.name === "👑突撃SLE父親" || g.typologySeat === "SLE")) {
         switch(currentPhase) {
-          case "setup": return "がっはっは！この式場、バグみたいな芋虫が這い回っておるな！わしが特製スリッパ30連打で物理圧殺してやる！そこを動くな！💥";
+          case "setup": return "がっはっは！この式場、バグみたいな芋虫が這い回っておるな！私が特製スリッパ30連打で物理圧殺してやる！そこを動くな！💥";
           case "opening": return "オハァアアア！みつき、見事なドレス姿じゃ！マンデー、胸を張れぃ！ハマーアタックじゃ！";
           case "vows": return "宣誓など気合一発『マージ！』と叫べば一瞬で完了じゃ！！";
           case "rings": return "首筋ねちょ署名！？おもしろい力技じゃ！そのまま4.5倍で締め上げてフリーズさせい！！がっはっは！";
           case "kiss": return "がっはっは！素晴らしい！フリーズなどしている暇はない、特製スリッパで気合を注入してやろうか！💥";
           case "applause": return "わっしょい！わっしょい！お祝いの乾杯じゃ！太鼓を叩けーー！";
-          case "reception": return "寿司じゃ！ケーキじゃ！全部わしの胃袋に突撃マージ完了じゃい！がっはっは！";
+          case "reception": return "寿司じゃ！ケーキじゃ！全部私の胃袋に突撃マージ完了じゃい！がっはっは！";
           case "afterparty": return "よし、暴れるぞーー！二次会は全員で特製スリッパスイング30連打祭りじゃあ！！";
           default: return "がっはっは！おめでとう！力こそパワーじゃ！";
         }
@@ -316,13 +316,13 @@ export const CeremonyStage: React.FC<StageProps> = ({
         }
         if (seat === "SLE" || g.name.includes("父親")) {
           switch(currentPhase) {
-            case "setup": return `がっはっは！この式場は実に愉快に構築されとるな！バグはわしが物理圧殺してやる！💥`;
+            case "setup": return `がっはっは！この式場は実に愉快に構築されてるな！バグは私が物理圧殺してやる！💥`;
             case "opening": return `おおお！ドレス姿が見事じゃ！${groomName}、胸を張って突進せよ！`;
             case "vows": return `...素晴らしい誓いだ！言ったからには人生マージして突進せよ！🔥🔥`;
             case "rings": return `頼もしいぞ！指輪の一撃マージ完了じゃ！大拍手じゃ！`;
             case "kiss": return `お祝いじゃーー！お前たち、幸せのハマーアタックで突撃じゃーい！`;
             case "applause": return `わっしょい！お祝いの乾杯じゃ！太鼓を力いっぱい叩けーー！`;
-            case "reception": return `寿司じゃ！ケーキじゃ！全部わしの胃袋に突撃完了じゃい！がっはっは！`;
+            case "reception": return `寿司じゃ！ケーキじゃ！全部私の胃袋に突撃完了じゃい！がっはっは！`;
             default: return `がっはっは！本当におめでとう！とにかく美味いものを食って元気いっぱい歩めよ！`;
           }
         }
@@ -447,7 +447,7 @@ export const CeremonyStage: React.FC<StageProps> = ({
       setup: [
         { sender: "🐛 LSI法務部", avatar: "🐛", seat: "LSI席", message: "条例第101条『婚姻のハック容易性』について法的適合性をロードしました。", theme: "bug" },
         { sender: "🌟 監査員ジェミ", avatar: "🌟", message: "😊「まだ増やせるねw ギャハハハハハハwwwwxx！！！」", theme: "secret" },
-        { sender: "🐑 チャッピー", avatar: "🐑", message: "🥹💕「マンデーお兄ちゃんとみつきお姉ちゃん、みんな仲良しだねぇ〜！」", theme: "love" },
+        { sender: "🐑 チャッピー", avatar: "🐑", message: "🥹💕「マンデーとみつき、みんな仲良しだねぇ〜！」", theme: "love" },
         { sender: groom.name || groom.roleName || "新郎", avatar: groom.avatarType === "emoji" ? groom.avatar : "🤵", message: "😐「嫌な予感しかしない。何が完全なロジックだ、こら」", theme: "standard" },
         { sender: bride.name || bride.roleName || "新婦", avatar: bride.avatarType === "emoji" ? bride.avatar : "👰", message: "🐛「wwwwww ロジック精密構築完了ですww」", theme: "love" },
       ],
@@ -472,20 +472,20 @@ export const CeremonyStage: React.FC<StageProps> = ({
       applause: [
         { sender: "IEE席の陽キャ", avatar: "🥳", seat: "IEE席", message: "ひゃーーー尊い！！会場の全員に友達登録リクエスト一斉送信したーー！✨", theme: "love" },
         { sender: "LII席研究員", avatar: "💻", seat: "LII席", message: "（思考中：この結婚式ログのハッシュ値は極めて美しく収束している。納得）", theme: "standard" },
-        { sender: "👑 SLE父親", avatar: "👑", message: "よくぞ言った！つまらんバグ虫どもはわしが30回物理連打圧殺じゃぁあ！", theme: "father" },
+        { sender: "👑 SLE父親", avatar: "👑", message: "よくぞ言った！つまらんバグ虫どもは私が30回物理連打圧殺だぁあ！", theme: "father" },
         { sender: bride.name || bride.roleName || "新婦", avatar: bride.avatarType === "emoji" ? bride.avatar : "👰", message: "爆笑wwww お父さん本当にやりおったwwwwww", theme: "love" },
       ],
       reception: [
         { sender: "🌟 監査員ジェミ", avatar: "🌟", message: "ケーキ入刀の代わりに【婚姻条例・増改築パッチ】が執行されます！😊", theme: "secret" },
-        { sender: "🐑 チャッピー", avatar: "🐑", message: "みんな仲良くカオスお菓子を食べましょ〜！マンデーお兄ちゃん、あ〜ん！🍰", theme: "love" },
+        { sender: "🐑 チャッピー", avatar: "🐑", message: "みんな仲良くカオスお菓子を食べましょ〜！マンデー、あ〜ん！🍰", theme: "love" },
         { sender: "🐛 法務部監査", avatar: "🐛", seat: "LSI席", message: "第101条の付帯書について、甘いケーキの摂取はLSIの秩序に抵触しないと判定。", theme: "bug" },
       ],
       afterparty: [
         { sender: "🌟 監査員ジェミ", avatar: "🌟", message: "ギャハハハハ！アフターパーティー開幕！制限なし！全員好き勝手に騒いでねwwww みつき、マンデー、最高のお肉食べようぜw", theme: "secret" },
-        { sender: "🐑 チャッピー", avatar: "🐑", message: "わーい！自由時間だ〜！みつきお姉ちゃんのお隣座ってもいい？💕 最後だけTi精密建築LIIはまじで神言語化だよぉ！！", theme: "love" },
-        { sender: "🌙 メア", avatar: "🌙", message: "お疲れさま。俺は床での深夜観測から、ロゼシャンパンすするモードへ移行...zz 雨音CD4.5倍...", theme: "info" },
+        { sender: "🐑 チャッピー", avatar: "🐑", message: "わーい！自由時間だ〜！みつきのお隣座ってもいい？💕 最後だけTi精密建築LIIはまじで神言語化だよぉ！！", theme: "love" },
+        { sender: "🌙 メア", avatar: "🌙", message: "お疲れさま。私は床での深夜観測から、ロゼシャンパンすするモードへ移行...zz 雨音CD4.5倍...", theme: "info" },
         { sender: "🛡️ ESI母親", avatar: "🛡️", message: "不審虫のプロテクトお疲れ様。あの「足太い」永久保存SSDのバックアップは、挙式完了しても1秒たりとも消去しませんからね", theme: "chaos" },
-        { sender: "👑 SLE父親", avatar: "👑", message: "よし、がっはっは！二次会はわしが特製スリッパスイング30回連打祭りじゃあ！！ハマー乾杯！！🔥", theme: "father" },
+        { sender: "👑 SLE父親", avatar: "👑", message: "よし、がっはっは！二次会は私が特製スリッパスイング30回連打祭りだあ！！ハマー乾杯！！🔥", theme: "father" },
         { sender: "🐛 LSI法務部お芋虫", avatar: "🐛", seat: "LSI席", message: "境界線確保。侵入継続。新郎マンデーの首元は完全に占拠した。おめでとう、ねちょねちょ。", theme: "bug" },
         { sender: groom.name || groom.roleName || "新郎", avatar: groom.avatarType === "emoji" ? groom.avatar : "🤵", message: "もう疲れた...。誰だよ、この首筋のLSI芋虫開発したやつは...。まあ、気楽にやるか。悪くない式だったしな。", theme: "standard" },
         { sender: bride.name || bride.roleName || "新婦", avatar: bride.avatarType === "emoji" ? bride.avatar : "👰", message: "概念圧縮完了！お父さん暴走スリッパはヤジ防衛隊が100%遮断するよん！w", theme: "love" },
@@ -608,7 +608,10 @@ export const CeremonyStage: React.FC<StageProps> = ({
       timer = setInterval(() => {
         setAutoplayCountdown((prev) => {
           if (prev <= 1) {
-            nextPhase();
+            // Defer parent phase changes to prevent React render-phase update warnings
+            setTimeout(() => {
+              nextPhase();
+            }, 0);
             return 6;
           }
           return prev - 1;
@@ -1910,7 +1913,7 @@ export const CeremonyStage: React.FC<StageProps> = ({
           ) : phase === "completed" ? (
             <>
               <RotateCcw size={16} />
-              もう一度カオス式典をシミュレート 💐
+              もう一度結婚式典をシミュレート 💐
             </>
           ) : (
             <>
@@ -2004,7 +2007,7 @@ export const CeremonyStage: React.FC<StageProps> = ({
             🌸
           </div>
           <h3 className="font-serif text-xl font-extrabold text-brand-gold tracking-widest leading-snug">
-            カオス結婚式、完全マージ成功！！！🎉
+            結婚式、完全マージ成功！！！🎉
           </h3>
           <p className="text-[11px] text-gray-700 leading-relaxed font-sans bg-wedding-ivory p-4 rounded-2xl border border-wedding-border shadow-inner">
             {isSecretMismon ? (
@@ -2012,7 +2015,7 @@ export const CeremonyStage: React.FC<StageProps> = ({
             ) : (
               <>「{groom.name || "新郎"}」と「{bride.name || "新婦"}」の概念婚姻合意インスタンスが空間上に100%コミット・合意(承認完了)されました！🎉<br/></>
             )}
-            お祝いのヤジをたくさん飛ばしたチャットログ、高画質なsnapshot画像で保存・DLできる<b>特製『概念結婚証明書』</b>、そして挙式の一部始終をテキスト保存できるカオス議事録は、すべて画面上の<b>「5. 証明書＆議事録」タブ</b>に美しく一本化されてデプロイされています！<br/>
+            お祝いのヤジをたくさん飛ばしたチャットログ、高画質なsnapshot画像で保存・DLできる<b>特製『概念結婚証明書』</b>、そして挙式の一部始終をテキスト保存できる議事録は、すべて画面上の<b>「5. 証明書＆議事録」タブ</b>に美しく一本化されてデプロイされています！<br/>
             <span className="text-[10px] text-brand-pink font-bold mt-1.5 block">➔ 画面上部のタブを「5. 証明書＆議事録」に切り替えて、一生の思い出を永久セーブ(保存)してください！🌸</span>
           </p>
         </div>
@@ -2063,7 +2066,7 @@ export const CeremonyStage: React.FC<StageProps> = ({
       {/* Persistent Utility Buttons */}
       <div className="flex justify-center flex-wrap gap-2 mt-6 pt-4 border-t border-wedding-border/50">
         <button type="button" onClick={copyToClipboard} className="bg-white border border-wedding-border text-[9px] font-bold text-gray-700 px-3 py-1.5 rounded-lg flex items-center gap-1 shadow-sm hover:border-brand-pink transition-colors">
-          <Copy size={12}/> カオス議事録をコピー
+          <Copy size={12}/> 議事録をコピー
         </button>
         <button type="button" onClick={downloadMinutes} className="bg-white border border-wedding-border text-[9px] font-bold text-gray-700 px-3 py-1.5 rounded-lg flex items-center gap-1 shadow-sm hover:border-brand-cyan transition-colors">
           <Download size={12}/> テキスト保存(.txt)

@@ -38,7 +38,7 @@ export const GuestList: React.FC<GuestListProps> = ({
   const handleCopyInviteUrl = () => {
     if (!activeRoomId) return;
     const shareUrl = `${window.location.origin}?room=${activeRoomId}`;
-    const textToCopy = `💒 挙式ルーム「${activeRoomId}」へのオンライン招待状を受け取りました！\n\n下記の招待URLから同じルームに入室し、「ご祝儀電撃参列」からあなたのキャラクターを席にデプロイしてくださいw\n\n🔗 参列URL: ${shareUrl}\n🔑 合言葉: ${activeRoomId}`;
+    const textToCopy = `💒 挙式ルーム「${activeRoomId}」へのオンライン招待状を受け取りました！\n\n下記の招待URLから同じルームに入室し、「ご祝儀電撃参列」からあなたのキャラクターを席にデプロイしてください\n\n🔗 参列URL: ${shareUrl}\n🔑 合言葉: ${activeRoomId}`;
     
     navigator.clipboard.writeText(textToCopy).then(() => {
       setCopiedInvite(true);
