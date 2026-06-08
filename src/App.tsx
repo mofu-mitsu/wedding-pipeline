@@ -1133,7 +1133,7 @@ export default function App() {
               </span>
             </h1>
             <p className="text-xs text-gray-500 mt-1 font-sans leading-relaxed">
-              白ベースの上品な挙式場に、おもしろ性格別ゲストをデプロイ。笑いと条例、そして非常停止無効化をその手に。
+              白ベースの上品な挙式場に、推しカプの相性や人間関係カオスを完全マージ！おもしろ会話ピコピコ流れる結婚式ゲーム。
             </p>
           </div>
         </div>
@@ -1265,7 +1265,7 @@ export default function App() {
                 <p className="text-xs text-gray-500 max-w-lg mx-auto leading-relaxed">
                   ここはお好みの推しカップルや、お友達の概念結婚式を1秒でビルドする愛のサンドボックスです。
                   <br />
-                  BL/GL/自由な組み合わせに完全対応。白ベースの上品な挙式空間へようこそ。
+                  NL/BL/GL/自由な組み合わせに完全対応。白ベースの上品な挙式空間へようこそ。
                 </p>
               </div>
 
