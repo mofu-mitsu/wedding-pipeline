@@ -258,8 +258,56 @@ export default function App() {
     setLogs((prev) => [newLogItem, ...prev]);
   };
 
+  // GASに部屋データを最新情報として完全セーブ（アップロード）する超重要関数
+  const saveRoomToGas = async (targetRoom: WeddingRoom) => {
+    const activeGasUrl = gasUrl || DEFAULT_GAS_URL;
+    if (!activeGasUrl || !targetRoom.id) return;
+    try {
+      setIsSyncing(true);
+      const payload = {
+        action: "saveRoom",
+        id: targetRoom.id.toLowerCase(),
+        room: targetRoom,
+      };
+      
+      const res = await fetch(activeGasUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "text/plain;charset=utf-8",
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        console.warn("GAS save failed, status non-200");
+      }
+    } catch (err) {
+      console.warn("GAS saveRoomToGas exception:", err);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  // GASから最新の部屋データをGETでフェッチして返す関数
+  const fetchRoomFromGas = async (roomId: string) => {
+    const activeGasUrl = gasUrl || DEFAULT_GAS_URL;
+    if (!activeGasUrl || !roomId) return null;
+    try {
+      const cleanCode = roomId.toLowerCase();
+      const res = await fetch(`${activeGasUrl}?action=getRoom&id=${cleanCode}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && !data.error) {
+          return data as WeddingRoom;
+        }
+      }
+    } catch (err) {
+      console.warn("GAS fetchRoomFromGas exception:", err);
+    }
+    return null;
+  };
+
   // Create Room Handler
-  const handleCreateRoom = (roomName: string, hostName: string, customCode: string) => {
+  const handleCreateRoom = async (roomName: string, hostName: string, customCode: string) => {
     const cleanCode = customCode.trim().toLowerCase();
     if (!roomName.trim()) {
       setCreateRoomError("※式場ルーム名が空欄です");
@@ -307,6 +355,9 @@ export default function App() {
     setActiveRoomId(cleanCode);
     localStorage.setItem("concept_wedding_active_room_id_v4", cleanCode);
     setActiveTab("setup");
+
+    // 🚀 生成と同時にGAS（クラウドスプレッドシート）へ秒速で初期ロードデプロイ！！！
+    await saveRoomToGas(newRoom);
   };
 
   // 3. Preset Loaded Trigger
@@ -637,6 +688,82 @@ export default function App() {
     window.addEventListener("storage", handleStorageUpdate);
     return () => window.removeEventListener("storage", handleStorageUpdate);
   }, [activeRoomId]);
+
+  // ★ ホスト（主催者：currentUserProfileが未定義）としての変更を自動でクラウドへデプロイ(保存)
+  useEffect(() => {
+    if (!activeRoomId) return;
+    if (currentUserProfile) return; // 参列ゲストはホストの設定を勝手に壊さないようガード！
+
+    const activeRoom = rooms.find((r) => r.id === activeRoomId);
+    if (!activeRoom) return;
+
+    const timer = setTimeout(() => {
+      saveRoomToGas(activeRoom);
+    }, 1500); // 1.5秒デバウンスでGAS側の負荷を下げながら堅固に保存
+    return () => clearTimeout(timer);
+  }, [groom, bride, officiant, groomVow, brideVow, guests, phase, systemGage, logs, chats, activeRoomId]);
+
+  // ★ バックグラウンドでの4秒おきGASポーリング（全同期コア）
+  useEffect(() => {
+    if (!activeRoomId) return;
+    const cleanCode = activeRoomId.toLowerCase();
+
+    const interval = setInterval(async () => {
+      const remoteRoom = await fetchRoomFromGas(cleanCode);
+      if (remoteRoom) {
+        setRooms((prev) => {
+          const filtered = prev.filter((r) => r.id !== cleanCode);
+          return [...filtered, remoteRoom];
+        });
+
+        if (currentUserProfile) {
+          // == ゲスト端の動作 ==
+          // 新郎新婦、司会者、誓い、進行フェーズ、客席、チャットなど、すべてのクラウド情報を「現地神同期」！
+          setGroom((existing) => JSON.stringify(existing) !== JSON.stringify(remoteRoom.groom) ? remoteRoom.groom : existing);
+          setBride((existing) => JSON.stringify(existing) !== JSON.stringify(remoteRoom.bride) ? remoteRoom.bride : existing);
+          setOfficiant((existing) => JSON.stringify(existing) !== JSON.stringify(remoteRoom.officiant) ? remoteRoom.officiant : existing);
+          setGroomVow((existing) => existing !== remoteRoom.groomVow ? remoteRoom.groomVow : existing);
+          setBrideVow((existing) => existing !== remoteRoom.brideVow ? remoteRoom.brideVow : existing);
+          setPhase((existing) => existing !== remoteRoom.phase ? remoteRoom.phase : existing);
+          setSystemGage((existing) => JSON.stringify(existing) !== JSON.stringify(remoteRoom.systemGage) ? remoteRoom.systemGage : existing);
+          setGuests((existing) => JSON.stringify(existing) !== JSON.stringify(remoteRoom.guests) ? remoteRoom.guests || [] : existing);
+          setLogs((existing) => JSON.stringify(existing) !== JSON.stringify(remoteRoom.logs) ? remoteRoom.logs || [] : existing);
+          setChats((existing) => JSON.stringify(existing) !== JSON.stringify(remoteRoom.chats) ? remoteRoom.chats || [] : existing);
+        } else {
+          // == ホスト（主役）端の動作 ==
+          // ゲスト(スマホ等)から追加された参列ゲスト、ヤヤジチャット、入退場ログだけを高精度マージする！
+          setChats((prevChats) => {
+            const prevStr = JSON.stringify(prevChats);
+            const remoteStr = JSON.stringify(remoteRoom.chats || []);
+            if (prevStr !== remoteStr) {
+              return remoteRoom.chats || [];
+            }
+            return prevChats;
+          });
+
+          setGuests((prevGuests) => {
+            const prevStr = JSON.stringify(prevGuests);
+            const remoteStr = JSON.stringify(remoteRoom.guests || []);
+            if (prevStr !== remoteStr) {
+              return remoteRoom.guests || [];
+            }
+            return prevGuests;
+          });
+
+          setLogs((prevLogs) => {
+            const prevStr = JSON.stringify(prevLogs);
+            const remoteStr = JSON.stringify(remoteRoom.logs || []);
+            if (prevStr !== remoteStr) {
+              return remoteRoom.logs || [];
+            }
+            return prevLogs;
+          });
+        }
+      }
+    }, 4000); // 4秒おきの軽量更新ループ
+
+    return () => clearInterval(interval);
+  }, [activeRoomId, currentUserProfile]);
 
   // 6. VIP Summons Command Action
   const handleDeployVIPs = () => {
@@ -996,6 +1123,9 @@ export default function App() {
     setInviteGuestName("");
     setInviteGuestMsg("");
     setInviteEnteredCode("");
+
+    // 🚀 参列/再ログイン完了したら、その新しいゲスト名簿＆ログを即座にGASクラウドへ同期！
+    saveRoomToGas(finalRoomData);
 
     // Jump to altar tab for guests if it's already started, otherwise setup tab is fine or altar is fine.
     // The user wants Guests to wait until host starts. So maybe we should just go to the altar directly (which shows waiting screen if setup).
@@ -1618,6 +1748,20 @@ export default function App() {
                 logs={logs}
                 chats={chats}
                 setChats={setChats}
+                onTriggerImmediateSave={async (updatedChats) => {
+                  const activeRoom = rooms.find((r) => r.id === activeRoomId);
+                  if (activeRoom) {
+                    const payload: WeddingRoom = {
+                      ...activeRoom,
+                      chats: updatedChats || chats,
+                      guests: guests,
+                      logs: logs,
+                      phase: phase,
+                      systemGage: systemGage,
+                    };
+                    await saveRoomToGas(payload);
+                  }
+                }}
               />
             </div>
           )}

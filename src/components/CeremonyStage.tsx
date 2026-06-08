@@ -51,6 +51,7 @@ interface StageProps {
   logs: WeddingLog[];
   chats: RealtimeChat[];
   setChats: React.Dispatch<React.SetStateAction<RealtimeChat[]>>;
+  onTriggerImmediateSave?: (updatedChats?: RealtimeChat[]) => void;
 }
 
 interface Particle {
@@ -85,6 +86,7 @@ export const CeremonyStage: React.FC<StageProps> = ({
   logs,
   chats,
   setChats,
+  onTriggerImmediateSave,
 }) => {
   const [particles, setParticles] = useState<Particle[]>([]);
   const [clickCount, setClickCount] = useState(0);
@@ -1030,7 +1032,8 @@ export const CeremonyStage: React.FC<StageProps> = ({
       theme,
     };
     
-    setChats(prev => [...prev.slice(-40), userChat]);
+    const updatedChats = [...chats.slice(-40), userChat];
+    setChats(updatedChats);
     setUserChatInput("");
     
     // Also add to timeline log so it syncs up to GAS if synced
@@ -1040,6 +1043,10 @@ export const CeremonyStage: React.FC<StageProps> = ({
       theme === "secret" ? "secret" : (theme === "love" ? "love" : "info"),
       "fa-regular fa-comment-dots"
     );
+
+    if (onTriggerImmediateSave) {
+      onTriggerImmediateSave(updatedChats);
+    }
 
     setTimeout(() => {
       if (chatScrollRef.current) {
@@ -1647,6 +1654,10 @@ export const CeremonyStage: React.FC<StageProps> = ({
                 onChange={(e) => setUserChatInput(e.target.value)}
                 placeholder={isSecretMismon ? "ヤジを飛ばす... (例: 最後だけTiで建築w)" : "ヤジを飛ばす... (例: おめでとう！🎉)"}
                 className="flex-1 bg-slate-800 border-none text-white text-[10px] rounded px-2 py-1 focus:ring-1 focus:ring-[#00f2fe] focus:outline-none placeholder-slate-500"
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
               />
               <button type="submit" disabled={!userChatInput.trim()} className="bg-[#00f2fe]/20 text-[#00f2fe] hover:bg-[#00f2fe]/40 disabled:opacity-30 disabled:hover:bg-[#00f2fe]/20 px-3 py-1 rounded text-[10px] font-bold shrink-0 transition-colors cursor-pointer">
                 送信
