@@ -1661,9 +1661,24 @@ export default function App() {
                     <span className="text-[8px] text-brand-cyan block font-mono uppercase font-bold tracking-wider">
                       {groom.roleName || "新郎"}
                     </span>
-                    <span className="text-3xl pt-1.5 block">
-                      {groom.avatarType === "emoji" ? groom.avatar : "👤"}
-                    </span>
+                    <div className="flex justify-center items-center h-12 pt-1.5">
+                      {groom.avatarType === "emoji" ? (
+                        <span className="text-3xl">{groom.avatar}</span>
+                      ) : (
+                        <div className="w-11 h-11 rounded-full overflow-hidden border-2 border-brand-cyan/20 bg-white shadow-sm flex items-center justify-center">
+                          {groom.avatar ? (
+                            <img
+                              src={groom.avatar}
+                              alt=""
+                              className="w-full h-full object-cover"
+                              referrerPolicy="no-referrer"
+                            />
+                          ) : (
+                            <span className="text-xl text-gray-400">👤</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
                     <span className="font-extrabold text-xs text-wedding-dark pt-1 block">
                       {groom.name || "未定義の新郎"}
                     </span>
@@ -1678,9 +1693,24 @@ export default function App() {
                     <span className="text-[8px] text-brand-pink block font-mono uppercase font-bold tracking-wider">
                       {bride.roleName || "新婦"}
                     </span>
-                    <span className="text-3xl pt-1.5 block">
-                      {bride.avatarType === "emoji" ? bride.avatar : "👤"}
-                    </span>
+                    <div className="flex justify-center items-center h-12 pt-1.5">
+                      {bride.avatarType === "emoji" ? (
+                        <span className="text-3xl">{bride.avatar}</span>
+                      ) : (
+                        <div className="w-11 h-11 rounded-full overflow-hidden border-2 border-brand-pink/20 bg-white shadow-sm flex items-center justify-center">
+                          {bride.avatar ? (
+                            <img
+                              src={bride.avatar}
+                              alt=""
+                              className="w-full h-full object-cover"
+                              referrerPolicy="no-referrer"
+                            />
+                          ) : (
+                            <span className="text-xl text-gray-400">👤</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
                     <span className="font-extrabold text-xs text-wedding-dark pt-1 block">
                       {bride.name || "未定義の新婦"}
                     </span>

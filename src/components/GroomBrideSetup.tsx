@@ -358,7 +358,7 @@ export const GroomBrideSetup: React.FC<SetupProps> = ({
                       className="flex-1 bg-white hover:bg-brand-cyan/5 border border-wedding-border hover:border-brand-cyan rounded py-1 px-2 text-[9px] text-gray-600 hover:text-brand-cyan font-semibold flex items-center justify-center gap-1 transition-all shadow-sm"
                     >
                       <Upload size={10} />
-                      <span>PCから画像アップ</span>
+                      <span>画像アップ</span>
                     </button>
                     <input
                       ref={groomFileRef}
@@ -551,7 +551,7 @@ export const GroomBrideSetup: React.FC<SetupProps> = ({
                       className="flex-1 bg-white hover:bg-brand-pink/5 border border-wedding-border hover:border-brand-pink rounded py-1 px-2 text-[9px] text-gray-600 hover:text-brand-pink font-semibold flex items-center justify-center gap-1 transition-all shadow-sm"
                     >
                       <Upload size={10} />
-                      <span>PCから画像アップ</span>
+                      <span>画像アップ</span>
                     </button>
                     <input
                       ref={brideFileRef}
@@ -689,7 +689,7 @@ export const GroomBrideSetup: React.FC<SetupProps> = ({
                       className="flex-1 bg-white hover:bg-brand-gold/5 border border-wedding-border hover:border-brand-gold rounded py-1 px-2 text-[9px] text-gray-600 hover:text-brand-gold font-semibold flex items-center justify-center gap-1 transition-all shadow-sm"
                     >
                       <Upload size={10} />
-                      <span>PCから画像アップ</span>
+                      <span>画像アップ</span>
                     </button>
                     <input
                       ref={officiantFileRef}
