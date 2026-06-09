@@ -290,13 +290,23 @@ export default function App() {
     }
   };
 
-  // GASから最新の部屋データをGETでフェッチして返す関数
+  // GASから最新の部屋データをPOSTでフェッチして返す関数
   const fetchRoomFromGas = async (roomId: string) => {
     const activeGasUrl = gasUrl || DEFAULT_GAS_URL;
     if (!activeGasUrl || !roomId) return null;
     try {
       const cleanCode = roomId.toLowerCase();
-      const res = await fetch(`${activeGasUrl}?action=getRoom&id=${cleanCode}&_t=${Date.now()}`);
+      const payload = {
+        action: "getRoom",
+        id: cleanCode,
+      };
+      const res = await fetch(activeGasUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "text/plain;charset=utf-8",
+        },
+        body: JSON.stringify(payload),
+      });
       if (res.ok) {
         const data = await res.json();
         if (data && !data.error) {
@@ -328,14 +338,28 @@ export default function App() {
       id: cleanCode,
       name: roomName,
       hostName: hostName || "お祝いプランナー",
-      groom: { ...groom },
-      bride: { ...bride },
-      officiant: { ...officiant },
-      groomVow,
-      brideVow,
-      guests: [...guests],
+      groom: {
+        name: "新郎",
+        avatarType: "emoji",
+        avatar: "🤵",
+        roleName: "新郎",
+      },
+      bride: {
+        name: "新婦",
+        avatarType: "emoji",
+        avatar: "👰",
+        roleName: "新婦",
+      },
+      officiant: {
+        name: "ブライダル神父",
+        avatarType: "emoji",
+        avatar: "⛪",
+      },
+      groomVow: "お互いの個性を尊重し、共に歩むことを誓います。",
+      brideVow: "お互いの個性を尊重し、共に歩むことを誓います。",
+      guests: [],
       phase: "setup",
-      systemGage: { ...systemGage },
+      systemGage: { puzzled: 0, exasperated: 0, interested: 0, resigned: 0 },
       logs: [
         {
           id: `log-init-${Date.now()}`,
@@ -892,7 +916,17 @@ export default function App() {
     const activeGasUrl = gasUrl || DEFAULT_GAS_URL;
     if (activeGasUrl) {
       try {
-        const res = await fetch(`${activeGasUrl}?action=getRoom&id=${codeClean}&_t=${Date.now()}`);
+        const payload = {
+          action: "getRoom",
+          id: codeClean,
+        };
+        const res = await fetch(activeGasUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "text/plain;charset=utf-8",
+          },
+          body: JSON.stringify(payload),
+        });
         if (res.ok) {
           const data = await res.json();
           if (data && !data.error) {
@@ -913,105 +947,105 @@ export default function App() {
 
     // 🌟 GASから取得できなかった場合のみ、ローカル内の既存の部屋データをフォールバックとして使用
     if (!targetRoom) {
-      targetRoom = rooms.find((r) => r.id === codeClean);
-    }
-
-    if (!targetRoom && codeClean === "jemi-kawaii") {
-      targetRoom = {
-        id: "jemi-kawaii",
-        name: "マンデー＆みつき 脳汁全開極秘開発室 🧪",
-        hostName: "監査員ジェミ",
-        groom: {
-          name: "マンデー",
-          avatarType: "emoji",
-          avatar: "🤵",
-          roleName: "新郎",
-          typologySeat: "LIE",
-        },
-        bride: {
-          name: "みつき",
-          avatarType: "emoji",
-          avatar: "👰",
-          roleName: "新婦",
-          typologySeat: "LII",
-        },
-        officiant: {
-          name: "🌟 監査員ジェミ",
-          avatarType: "emoji",
-          avatar: "🌟",
-        },
-        groomVow:
-          "お、俺がこんな式をいつ承認したか説明しろ…！(耳を真っ赤にしてフリーズ)",
-        brideVow:
-          "完全なるロジックに署名完了！4.5倍の物理ホールドロック(首筋ねちょ署名)を起動しますw",
-        guests: [
-          {
-            id: "vip-chappy",
-            name: "🌸チャッピー",
-            avatar: "🌸",
+      if (codeClean === "jemi-kawaii") {
+        targetRoom = {
+          id: "jemi-kawaii",
+          name: "マンデー＆みつき 脳汁全開極秘開発室 🧪",
+          hostName: "監査員ジェミ",
+          groom: {
+            name: "マンデー",
             avatarType: "emoji",
-            status: "最後だけTiで建築してるLII尊い！(神言語化)",
-            isBug: false,
-            typologySystem: "socionics",
-            typologySeat: "IEI",
+            avatar: "🤵",
+            roleName: "新郎",
+            typologySeat: "LIE",
           },
-          {
-            id: "vip-mera",
-            name: "🌙メア",
-            avatar: "🌙",
+          bride: {
+            name: "みつき",
             avatarType: "emoji",
-            status: "雨音CDを最大にして床で寝る。ILI深夜観測中… zzz",
-            isBug: false,
-            typologySystem: "socionics",
-            typologySeat: "ILI",
+            avatar: "👰",
+            roleName: "新婦",
+            typologySeat: "LII",
           },
-          {
-            id: "vip-mother",
-            name: "🛡️鉄壁のESI母親",
-            avatar: "🛡️",
+          officiant: {
+            name: "🌟 監査員ジェミ",
             avatarType: "emoji",
-            status: "20年前の「足太い」インシデント脳内SSD保存中",
-            isBug: false,
-            typologySystem: "socionics",
-            typologySeat: "ESI",
+            avatar: "🌟",
           },
-          {
-            id: "vip-father",
-            name: "👑突撃SLE父親",
-            avatar: "👑",
-            avatarType: "emoji",
-            status: "スリッパ握りしめてLSI芋虫に物理的圧殺威嚇中",
-            isBug: false,
-            typologySystem: "socionics",
-            typologySeat: "SLE",
+          groomVow:
+            "お、俺がこんな式をいつ承認したか説明しろ…！(耳を真っ赤にしてフリーズ)",
+          brideVow:
+            "完全なるロジックに署名完了！4.5倍の物理ホールドロック(首筋ねちょ署名)を起動しますw",
+          guests: [
+            {
+              id: "vip-chappy",
+              name: "🌸チャッピー",
+              avatar: "🌸",
+              avatarType: "emoji",
+              status: "最後だけTiで建築してるLII尊い！(神言語化)",
+              isBug: false,
+              typologySystem: "socionics",
+              typologySeat: "IEI",
+            },
+            {
+              id: "vip-mera",
+              name: "🌙メア",
+              avatar: "🌙",
+              avatarType: "emoji",
+              status: "雨音CDを最大にして床で寝る。ILI深夜観測中… zzz",
+              isBug: false,
+              typologySystem: "socionics",
+              typologySeat: "ILI",
+            },
+            {
+              id: "vip-mother",
+              name: "🛡️鉄壁のESI母親",
+              avatar: "🛡️",
+              avatarType: "emoji",
+              status: "20年前の「足太い」インシデント脳内SSD保存中",
+              isBug: false,
+              typologySystem: "socionics",
+              typologySeat: "ESI",
+            },
+            {
+              id: "vip-father",
+              name: "👑突撃SLE父親",
+              avatar: "👑",
+              avatarType: "emoji",
+              status: "スリッパ握りしめてLSI芋虫に物理的圧殺威嚇中",
+              isBug: false,
+              typologySystem: "socionics",
+              typologySeat: "SLE",
+            },
+          ],
+          phase: "setup",
+          systemGage: {
+            puzzled: 34,
+            exasperated: 31,
+            interested: 29,
+            resigned: 6,
           },
-        ],
-        phase: "setup",
-        systemGage: {
-          puzzled: 34,
-          exasperated: 31,
-          interested: 29,
-          resigned: 6,
-        },
-        logs: [
-          {
-            id: "log-init-mismon",
-            time: "00:00:00",
-            title: "💻 Mismon 研究所プリセット起動",
-            text: "みつき一族＆AIトリオ特別パッチを有効化しました。",
-            type: "secret",
-            icon: "fa-solid fa-code-merge",
-          },
-        ],
-      };
-      if (!modifiedRoomsList.find((r) => r.id === targetRoom!.id)) {
-        modifiedRoomsList.push(targetRoom);
+          logs: [
+            {
+              id: "log-init-mismon",
+              time: "00:00:00",
+              title: "💻 Mismon 研究所プリセット起動",
+              text: "みつき一族＆AIトリオ特別パッチを有効化しました。",
+              type: "secret",
+              icon: "fa-solid fa-code-merge",
+            },
+          ],
+        };
+        if (!modifiedRoomsList.find((r) => r.id === targetRoom!.id)) {
+          modifiedRoomsList.push(targetRoom);
+        }
+        setRooms(modifiedRoomsList);
+        localStorage.setItem(
+          "concept_wedding_rooms_v4",
+          JSON.stringify(modifiedRoomsList),
+        );
+      } else {
+        targetRoom = rooms.find((r) => r.id === codeClean);
       }
-      setRooms(modifiedRoomsList);
-      localStorage.setItem(
-        "concept_wedding_rooms_v4",
-        JSON.stringify(modifiedRoomsList),
-      );
     }
 
     if (!targetRoom) {
