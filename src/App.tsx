@@ -37,11 +37,13 @@ import * as sfx from "./utils/audio";
 import { toPng } from "html-to-image";
 
 export const DEFAULT_GAS_URL =
-  "https://script.google.com/macros/s/AKfycbz_M7QgLBpt9rFXZwuythFI3bGBkAWs96hx1INenEcazCBuTjjxhe68t6dfM4q8p70EmA/exec";
+  "https://script.google.com/macros/s/AKfycbwechr-U1vo_l4ENTT59Bpvkkz7YzX26dauSswW4k_alTwefCWXTUCz5ax0jLtjaef1/exec";
 
 type ActiveTab = "lobby" | "setup" | "guests" | "altar" | "completed";
 
 export default function App() {
+  const prevPhaseRef = useRef<WeddingPhase>("setup");
+
   // 1. Core States (Initially restored from localStorage to defeat the infamous LINE browser/webview reload crash!)
   const [groom, setGroom] = useState<Character>(() => {
     try {
@@ -283,7 +285,11 @@ export default function App() {
 
   // GAS Cloud Sync URL State
   const [gasUrl, setGasUrl] = useState<string>(() => {
-    return localStorage.getItem("wedding_gasUrl") || DEFAULT_GAS_URL || "";
+    const saved = localStorage.getItem("wedding_gasUrl");
+    if (!saved || saved.includes("AKfycbz_M7QgLBpt9rFXZwuythFI3bGBkAWs96hx1INenEcazCBuTjjxhe68t6dfM4q8p70EmA")) {
+      return DEFAULT_GAS_URL;
+    }
+    return saved;
   });
 
   useEffect(() => {
@@ -602,6 +608,8 @@ export default function App() {
     setBrideVow("お互いを守り抜き、どんなカオスも共に楽しむことを誓います。");
     setSystemGage({ puzzled: 0, exasperated: 0, interested: 0, resigned: 0 });
     setGuests([]);
+    setActiveRoomId("");
+    setPhase("setup");
     addLog(
       "🧹 識別名キャッシュパージ完了",
       "すべての入力欄をリセットしました。自由な推しの結婚式を構築できます。",
@@ -678,11 +686,18 @@ export default function App() {
     }
   }, [fillWithBugs, phase, isSecretMismon]);
 
-  // Jumps to right tab when phase updates
+  // Jumps to right tab when phase updates (only once on transition to avoid locking the activeTab state!)
   useEffect(() => {
+    if (prevPhaseRef.current !== phase) {
+      if (phase === "completed") {
+        setActiveTab("completed");
+      } else if (phase !== "setup") {
+        setActiveTab("altar");
+      }
+      prevPhaseRef.current = phase;
+    }
+
     if (phase === "completed") {
-      setActiveTab("completed");
-      
       // メール通知を送る (ホスト側でのみ1回きり)
       if (!currentUserProfile) {
         const activeGasUrl = gasUrl || DEFAULT_GAS_URL;
@@ -700,8 +715,6 @@ export default function App() {
           }
         }
       }
-    } else if (phase !== "setup") {
-      setActiveTab("altar");
     }
   }, [phase, currentUserProfile, gasUrl, activeRoomId, rooms]);
 

@@ -178,18 +178,27 @@ export const CeremonyStage: React.FC<StageProps> = ({
     }
   };
 
-  // Custom ref to track already processed gift logs to prevent infinite repeat
-  const lastProcessedLogIdRef = useRef<string | null>(null);
+  // 過去のすべてのログIDを追跡し、自動同期時の二重発火や古いお祝いエフェクトの暴発を完璧に防ぐ
+  const processedLogIdsRef = useRef<Set<string>>(new Set());
 
   // Dynamic Gift CSS Animation sync receiver
   useEffect(() => {
     if (!logs || logs.length === 0) return;
+
+    // 初回マウント時：既存のログはすべて「アニメーション処理済み」として登録し、昔の残骸エフェクトの暴発を防ぐ
+    if (processedLogIdsRef.current.size === 0) {
+      logs.forEach(log => {
+        processedLogIdsRef.current.add(log.id);
+      });
+      return;
+    }
+
     const latestLog = logs[0];
     if (!latestLog) return;
     
-    // Skip if already processed to ensure micro-performance and zero lag
-    if (lastProcessedLogIdRef.current === latestLog.id) return;
-    lastProcessedLogIdRef.current = latestLog.id;
+    // すでに処理済み、あるいは昔の読み込みログならスルー
+    if (processedLogIdsRef.current.has(latestLog.id)) return;
+    processedLogIdsRef.current.add(latestLog.id);
 
     const titleLower = latestLog.title.toLowerCase();
     const textLower = latestLog.text.toLowerCase();

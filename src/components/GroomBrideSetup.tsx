@@ -239,7 +239,7 @@ export const GroomBrideSetup: React.FC<SetupProps> = ({
                 value={groom.name}
                 onChange={(e) => setGroom({ ...groom, name: e.target.value })}
                 className="w-full bg-white border border-wedding-border rounded-md px-2.5 py-1 text-xs text-wedding-dark focus:outline-none focus:border-brand-cyan"
-                placeholder="(空欄：他人の名前を待機)"
+                placeholder="例：ヴィンセント"
               />
             </div>
 
@@ -433,7 +433,7 @@ export const GroomBrideSetup: React.FC<SetupProps> = ({
                 value={bride.name}
                 onChange={(e) => setBride({ ...bride, name: e.target.value })}
                 className="w-full bg-white border border-wedding-border rounded-md px-2.5 py-1 text-xs text-wedding-dark focus:outline-none focus:border-brand-pink"
-                placeholder="(空欄：新婦の名前お楽しみ)"
+                placeholder="例：シルヴィア"
               />
             </div>
 
