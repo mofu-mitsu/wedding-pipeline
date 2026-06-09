@@ -187,3 +187,43 @@ export function playShockSound() {
     console.warn(e);
   }
 }
+
+export function playBuzz() {
+  try {
+    const ctx = getAudioContext();
+    const now = ctx.currentTime;
+    
+    // Buzzing insect sound
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    
+    osc.type = "sawtooth";
+    osc.frequency.setValueAtTime(80, now);
+    osc.frequency.linearRampToValueAtTime(100, now + 0.1);
+    osc.frequency.linearRampToValueAtTime(90, now + 0.2);
+    
+    // LFO for buzzing modulation
+    const lfo = ctx.createOscillator();
+    const lfoGain = ctx.createGain();
+    lfo.type = "sine";
+    lfo.frequency.setValueAtTime(30, now); // 30Hz flutter
+    lfoGain.gain.setValueAtTime(40, now); // frequency modulation depth
+    
+    lfo.connect(osc.frequency);
+    
+    gain.gain.setValueAtTime(0.0, now);
+    gain.gain.linearRampToValueAtTime(0.05, now + 0.05);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+    
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    
+    lfo.start(now);
+    osc.start(now);
+    
+    lfo.stop(now + 0.35);
+    osc.stop(now + 0.35);
+  } catch (e) {
+    console.warn(e);
+  }
+}

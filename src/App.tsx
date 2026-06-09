@@ -37,7 +37,7 @@ import * as sfx from "./utils/audio";
 import { toPng } from "html-to-image";
 
 export const DEFAULT_GAS_URL =
-  "https://script.google.com/macros/s/AKfycbxLS2Co665YSzvhzWPJqP-iAMjYyo7OabDJLFqlJASRPGY2-PxdZcGpOJ55dUD-my1Wsw/exec";
+  "https://script.google.com/macros/s/AKfycbz_M7QgLBpt9rFXZwuythFI3bGBkAWs96hx1INenEcazCBuTjjxhe68t6dfM4q8p70EmA/exec";
 
 type ActiveTab = "lobby" | "setup" | "guests" | "altar" | "completed";
 
@@ -379,8 +379,24 @@ export default function App() {
       return updated;
     });
 
+    isSwitchingRoomRef.current = true;
+    setTimeout(() => {
+      isSwitchingRoomRef.current = false;
+    }, 100);
+
     setActiveRoomId(cleanCode);
     localStorage.setItem("concept_wedding_active_room_id_v4", cleanCode);
+
+    setGroom(newRoom.groom);
+    setBride(newRoom.bride);
+    setOfficiant(newRoom.officiant!);
+    setGroomVow(newRoom.groomVow || "");
+    setBrideVow(newRoom.brideVow || "");
+    setGuests(newRoom.guests || []);
+    setPhase(newRoom.phase || "setup");
+    setSystemGage(newRoom.systemGage || { puzzled: 0, exasperated: 0, interested: 0, resigned: 0 });
+    setLogs(newRoom.logs || []);
+    setChats(newRoom.chats || []);
     setActiveTab("setup");
 
     // 🚀 生成と同時にGAS（クラウドスプレッドシート）へ秒速で初期ロードデプロイ！！！
@@ -619,7 +635,25 @@ export default function App() {
         const parsedRooms = JSON.parse(savedRoomsStr) as WeddingRoom[];
         setRooms(parsedRooms);
         if (savedActiveId) {
+          isSwitchingRoomRef.current = true;
+          setTimeout(() => {
+            isSwitchingRoomRef.current = false;
+          }, 100);
+          
           setActiveRoomId(savedActiveId);
+          const targetRoom = parsedRooms.find(r => r.id === savedActiveId);
+          if (targetRoom) {
+            setGroom(targetRoom.groom!);
+            setBride(targetRoom.bride!);
+            setOfficiant(targetRoom.officiant!);
+            setGroomVow(targetRoom.groomVow || "");
+            setBrideVow(targetRoom.brideVow || "");
+            setGuests(targetRoom.guests || []);
+            setPhase(targetRoom.phase || "setup");
+            setSystemGage(targetRoom.systemGage || { puzzled: 0, exasperated: 0, interested: 0, resigned: 0 });
+            setLogs(targetRoom.logs || []);
+            setChats(targetRoom.chats || []);
+          }
         }
       } catch (e) {
         console.warn("Failed to load initial rooms config on Mount", e);
