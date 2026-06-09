@@ -21,7 +21,8 @@ function doGet(e) {
   if (action === 'getRoom') {
     const roomId = e.parameter.id;
     for (let i = 1; i < data.length; i++) {
-      if (data[i][0] === roomId) {
+      // 数値や余分なスペース、大文字小文字の違いを完全に吸収する最強の合言葉マッチング💪
+      if (String(data[i][0]).trim().toLowerCase() === String(roomId).trim().toLowerCase()) {
         return ContentService.createTextOutput(data[i][1]).setMimeType(ContentService.MimeType.JSON);
       }
     }
@@ -43,7 +44,7 @@ function doPost(e) {
       let rowIndex = -1;
       
       for (let i = 1; i < data.length; i++) {
-        if (data[i][0] === roomId) {
+        if (String(data[i][0]).trim().toLowerCase() === String(roomId).trim().toLowerCase()) {
           rowIndex = i + 1;
           break;
         }

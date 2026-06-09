@@ -42,33 +42,74 @@ export const DEFAULT_GAS_URL =
 type ActiveTab = "lobby" | "setup" | "guests" | "altar" | "completed";
 
 export default function App() {
-  // 1. Core States (Initially Empty following user requested pristine status)
-  const [groom, setGroom] = useState<Character>({
-    name: "",
-    avatarType: "emoji",
-    avatar: "🤵",
-    roleName: "新郎",
+  // 1. Core States (Initially restored from localStorage to defeat the infamous LINE browser/webview reload crash!)
+  const [groom, setGroom] = useState<Character>(() => {
+    try {
+      const saved = localStorage.getItem("wedding_groom");
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.warn("localStorage load groom failed", e);
+    }
+    return { name: "", avatarType: "emoji", avatar: "🤵", roleName: "新郎" };
   });
 
-  const [bride, setBride] = useState<Character>({
-    name: "",
-    avatarType: "emoji",
-    avatar: "👰",
-    roleName: "新婦",
+  const [bride, setBride] = useState<Character>(() => {
+    try {
+      const saved = localStorage.getItem("wedding_bride");
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.warn("localStorage load bride failed", e);
+    }
+    return { name: "", avatarType: "emoji", avatar: "👰", roleName: "新婦" };
   });
 
-  const [officiant, setOfficiant] = useState<Officiant>({
-    name: "",
-    avatarType: "emoji",
-    avatar: "🌟",
+  const [officiant, setOfficiant] = useState<Officiant>(() => {
+    try {
+      const saved = localStorage.getItem("wedding_officiant");
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.warn("localStorage load officiant failed", e);
+    }
+    return { name: "", avatarType: "emoji", avatar: "🌟" };
   });
 
-  const [groomVow, setGroomVow] = useState(
-    "お互いを尊重し、末永く共に歩むことを誓います。",
-  );
-  const [brideVow, setBrideVow] = useState(
-    "お互いを守り抜き、どんなカオスも共に楽しむことを誓います。",
-  );
+  const [groomVow, setGroomVow] = useState<string>(() => {
+    return localStorage.getItem("wedding_groomVow") || "お互いを尊重し、末永く共に歩むことを誓います。";
+  });
+  const [brideVow, setBrideVow] = useState<string>(() => {
+    return localStorage.getItem("wedding_brideVow") || "お互いを守り抜き、どんなカオスも共に楽しむことを誓います。";
+  });
+
+  // Autosave setup states to localstorage (Super immunity against Line browser automatic reloads/crash!)
+  useEffect(() => {
+    try {
+      localStorage.setItem("wedding_groom", JSON.stringify(groom));
+    } catch (e) {}
+  }, [groom]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("wedding_bride", JSON.stringify(bride));
+    } catch (e) {}
+  }, [bride]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("wedding_officiant", JSON.stringify(officiant));
+    } catch (e) {}
+  }, [officiant]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("wedding_groomVow", groomVow);
+    } catch (e) {}
+  }, [groomVow]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("wedding_brideVow", brideVow);
+    } catch (e) {}
+  }, [brideVow]);
   const [fillWithBugs, setFillWithBugs] = useState(true);
   const [guests, setGuests] = useState<Guest[]>([]);
   const [logs, setLogs] = useState<WeddingLog[]>([]);
@@ -200,7 +241,15 @@ export default function App() {
 
   // Private multi-room states
   const [rooms, setRooms] = useState<WeddingRoom[]>([]);
-  const [activeRoomId, setActiveRoomId] = useState<string>("");
+  const [activeRoomId, setActiveRoomId] = useState<string>(() => {
+    return localStorage.getItem("wedding_activeRoomId") || "";
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("wedding_activeRoomId", activeRoomId);
+    } catch (e) {}
+  }, [activeRoomId]);
   const [createRoomName, setCreateRoomName] = useState("");
   const [createHostName, setCreateHostName] = useState("");
   const [createCustomCode, setCreateCustomCode] = useState("");
@@ -233,7 +282,15 @@ export default function App() {
   const [enableSound, setEnableSound] = useState(true);
 
   // GAS Cloud Sync URL State
-  const [gasUrl, setGasUrl] = useState(() => DEFAULT_GAS_URL || "");
+  const [gasUrl, setGasUrl] = useState<string>(() => {
+    return localStorage.getItem("wedding_gasUrl") || DEFAULT_GAS_URL || "";
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("wedding_gasUrl", gasUrl);
+    } catch (e) {}
+  }, [gasUrl]);
   const [isSyncing, setIsSyncing] = useState(false);
 
   // 🌟 部屋切り替え中の過渡期上書き保存バグを防ぐ超重要フラグ！

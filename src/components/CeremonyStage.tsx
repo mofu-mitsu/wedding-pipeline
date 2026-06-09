@@ -184,7 +184,7 @@ export const CeremonyStage: React.FC<StageProps> = ({
   // Dynamic Gift CSS Animation sync receiver
   useEffect(() => {
     if (!logs || logs.length === 0) return;
-    const latestLog = logs[logs.length - 1];
+    const latestLog = logs[0];
     if (!latestLog) return;
     
     // Skip if already processed to ensure micro-performance and zero lag
@@ -1388,7 +1388,7 @@ export const CeremonyStage: React.FC<StageProps> = ({
               {[...Array(12)].map((_,i) => <span key={i} className="absolute text-xl pointer-events-none" style={{left: `${Math.random()*100}%`, top: `-20px`, animation: `confettidrop ${2+Math.random()*2}s linear infinite`, animationDelay: `${Math.random()*2}s`}}>🎉</span>)}
               
               <div className="flex items-center gap-6 w-full max-w-md bg-white/70 p-4 rounded-2xl border border-pink-100 shadow-sm">
-                <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center shadow-lg border-2 border-brand-pink shrink-0 hover:scale-105 transition-transform cursor-pointer" onClick={() => {if(enableSound)sfx.playCheerSound(); setClickCount(c=>c+1); setParticles(p=>[...p.slice(-20), {id: Date.now(), x: 50, y: 50, char: "🍰", color:"#fff", scale: 1.5}])}}>
+                <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center shadow-lg border-2 border-brand-pink shrink-0 hover:scale-105 transition-transform cursor-pointer" onClick={() => {if(enableSound)sfx.playCheerSound(); setClickCount(c=>c+1); spawnParticles("🍰", 15); spawnParticles("🎉", 15);}}>
                   <span className="text-5xl hover:animate-wiggle-custom animate-pulse">🍰</span>
                 </div>
                 
@@ -1759,6 +1759,8 @@ export const CeremonyStage: React.FC<StageProps> = ({
             type="button"
             onClick={() => {
               onTimelineLog("🌸 祝福のフラワーシャワー＆紙吹雪！", `参列者から新郎新婦へ、満開の桜と薔薇の花びら、きらめく紙吹雪が降り注ぎました！`, "love", "fa-solid fa-gift");
+              spawnParticles("🌸", 25);
+              spawnParticles("🎉", 25);
               
               const timeStr = new Date().toTimeString().split(" ")[0].substring(3, 8);
               setChats(prev => [

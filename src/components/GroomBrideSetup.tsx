@@ -268,13 +268,13 @@ export const GroomBrideSetup: React.FC<SetupProps> = ({
             </div>
 
             <div>
-              <label className="block text-[10px] text-gray-500 font-mono">性格タイプ / 類型（ソシオ・MBTI）</label>
+              <label className="block text-[10px] text-gray-500 font-mono">性格タイプ（任意）/ 類型（MBTI・ソシオ）</label>
               <div className="flex gap-1 mt-1">
                 <input
                   type="text"
                   value={groom.typologySeat || ""}
-                  onChange={(e) => setGroom({ ...groom, typologySeat: e.target.value.toUpperCase() })}
-                  className="flex-1 bg-white border border-wedding-border rounded px-2 py-1 text-xs text-wedding-dark focus:outline-none focus:border-brand-cyan"
+                  onChange={(e) => setGroom({ ...groom, typologySeat: e.target.value })}
+                  className="flex-1 bg-white border border-wedding-border rounded px-2 py-1 text-xs text-wedding-dark focus:outline-none focus:border-brand-cyan uppercase"
                   placeholder="例: ENTJ, LIE"
                 />
                 <select
@@ -462,13 +462,13 @@ export const GroomBrideSetup: React.FC<SetupProps> = ({
             </div>
 
             <div>
-              <label className="block text-[10px] text-gray-500 font-mono">性格タイプ / 類型（ソシオ・MBTI）</label>
+              <label className="block text-[10px] text-gray-500 font-mono">性格タイプ（任意）/ 類型（MBTI・ソシオ）</label>
               <div className="flex gap-1 mt-1">
                 <input
                   type="text"
                   value={bride.typologySeat || ""}
-                  onChange={(e) => setBride({ ...bride, typologySeat: e.target.value.toUpperCase() })}
-                  className="flex-1 bg-white border border-wedding-border rounded px-2 py-1 text-xs text-wedding-dark focus:outline-none focus:border-brand-pink"
+                  onChange={(e) => setBride({ ...bride, typologySeat: e.target.value })}
+                  className="flex-1 bg-white border border-wedding-border rounded px-2 py-1 text-xs text-wedding-dark focus:outline-none focus:border-brand-pink uppercase"
                   placeholder="例: LII, INTJ"
                 />
                 <select
