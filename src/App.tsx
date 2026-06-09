@@ -329,13 +329,13 @@ export default function App() {
       name: roomName,
       hostName: hostName || "お祝いプランナー",
       groom: {
-        name: "新郎",
+        name: "ヴィンセント",
         avatarType: "emoji",
         avatar: "🤵",
         roleName: "新郎",
       },
       bride: {
-        name: "新婦",
+        name: "シルヴィア",
         avatarType: "emoji",
         avatar: "👰",
         roleName: "新婦",
@@ -391,6 +391,20 @@ export default function App() {
 
     // 🚀 生成と同時にGAS（クラウドスプレッドシート）へ秒速で初期ロードデプロイ！！！
     await saveRoomToGas(newRoom);
+    
+    // メール通知を送る
+    const activeGasUrl = gasUrl || DEFAULT_GAS_URL;
+    if (activeGasUrl) {
+      try {
+        await fetch(activeGasUrl, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({ action: "notifyCreate", id: cleanCode, room: newRoom }),
+        });
+      } catch (err) {
+        console.warn("notifyCreate error:", err);
+      }
+    }
   };
 
   // 3. Preset Loaded Trigger
@@ -611,13 +625,40 @@ export default function App() {
   useEffect(() => {
     if (phase === "completed") {
       setActiveTab("completed");
+      
+      // メール通知を送る (ホスト側でのみ1回きり)
+      if (!currentUserProfile) {
+        const activeGasUrl = gasUrl || DEFAULT_GAS_URL;
+        if (activeGasUrl && activeRoomId) {
+          const currentRoom = rooms.find(r => r.id === activeRoomId);
+          if (currentRoom && (!currentRoom.logs.some(l => l.title === "📧 式完了通知送信"))) {
+             fetch(activeGasUrl, {
+               method: "POST",
+               headers: { "Content-Type": "text/plain;charset=utf-8" },
+               body: JSON.stringify({ action: "notifyFinished", id: activeRoomId, room: currentRoom }),
+             }).catch(err => console.warn("notifyFinished err:", err));
+             
+             // ログに残して二重送信を防止
+             addLog("📧 式完了通知送信", "新郎新婦の結婚誓約情報を永久保存アーカイブへ登録完了しました。", "info");
+          }
+        }
+      }
     } else if (phase !== "setup") {
       setActiveTab("altar");
     }
-  }, [phase]);
+  }, [phase, currentUserProfile, gasUrl, activeRoomId, rooms]);
 
   // Hook 0: Load initial rooms config from LocalStorage on Mount
   useEffect(() => {
+    const savedProfileStr = localStorage.getItem("concept_wedding_guest_profile_v4");
+    if (savedProfileStr) {
+      try {
+        const parsedProfile = JSON.parse(savedProfileStr);
+        setCurrentUserProfile(parsedProfile);
+      } catch (e) {
+        console.warn("Failed to load guest profile", e);
+      }
+    }
     const savedRoomsStr = localStorage.getItem("concept_wedding_rooms_v4");
     const savedActiveId = localStorage.getItem("concept_wedding_active_room_id_v4");
     if (savedRoomsStr) {
@@ -777,13 +818,13 @@ export default function App() {
     const interval = setInterval(async () => {
       const remoteRoom = await fetchRoomFromGas(cleanCode);
       if (remoteRoom) {
-        setRooms((prev) => {
-          const filtered = prev.filter((r) => r.id !== cleanCode);
-          return [...filtered, remoteRoom];
-        });
-
         if (currentUserProfile) {
           // == ゲスト端の動作 ==
+          setRooms((prev) => {
+            const filtered = prev.filter((r) => r.id !== cleanCode);
+            return [...filtered, remoteRoom];
+          });
+
           // 新郎新婦、司会者、誓い、進行フェーズ、客席、チャットなど、すべてのクラウド情報を「現地神同期」！
           setGroom((existing) => JSON.stringify(existing) !== JSON.stringify(remoteRoom.groom) ? remoteRoom.groom : existing);
           setBride((existing) => JSON.stringify(existing) !== JSON.stringify(remoteRoom.bride) ? remoteRoom.bride : existing);
@@ -1182,11 +1223,14 @@ export default function App() {
     setJoinedRemoteGuests((prev) => [...prev, codeClean]);
     if (isHostLogin) {
       setCurrentUserProfile(undefined);
+      localStorage.removeItem("concept_wedding_guest_profile_v4");
     } else {
-      setCurrentUserProfile({
+      const profile = {
         name: inviteGuestName.trim(),
         avatar: inviteGuestAvatar,
-      });
+      };
+      setCurrentUserProfile(profile);
+      localStorage.setItem("concept_wedding_guest_profile_v4", JSON.stringify(profile));
     }
 
     setInviteGuestName("");
