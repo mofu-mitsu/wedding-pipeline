@@ -43,6 +43,8 @@ type ActiveTab = "lobby" | "setup" | "guests" | "altar" | "completed";
 
 export default function App() {
   const prevPhaseRef = useRef<WeddingPhase>("setup");
+  const sentFinishedEmailsRef = useRef<Set<string>>(new Set());
+  const isSendingNotificationRef = useRef<boolean>(false);
 
   // 1. Core States (Initially restored from localStorage to defeat the infamous LINE browser/webview reload crash!)
   const [groom, setGroom] = useState<Character>(() => {
@@ -702,16 +704,37 @@ export default function App() {
       if (!currentUserProfile) {
         const activeGasUrl = gasUrl || DEFAULT_GAS_URL;
         if (activeGasUrl && activeRoomId) {
-          const currentRoom = rooms.find(r => r.id === activeRoomId);
-          if (currentRoom && (!currentRoom.logs.some(l => l.title === "📧 式完了通知送信"))) {
-             fetch(activeGasUrl, {
-               method: "POST",
-               headers: { "Content-Type": "text/plain;charset=utf-8" },
-               body: JSON.stringify({ action: "notifyFinished", id: activeRoomId, room: currentRoom }),
-             }).catch(err => console.warn("notifyFinished err:", err));
-             
-             // ログに残して二重送信を防止
-             addLog("📧 式完了通知送信", "新郎新婦の結婚誓約情報を永久保存アーカイブへ登録完了しました。", "info");
+          const storageKey = `wedding_email_sent_${activeRoomId}`;
+          const isAlreadySent = localStorage.getItem(storageKey) === "true";
+
+          if (
+            !isAlreadySent &&
+            !sentFinishedEmailsRef.current.has(activeRoomId) &&
+            !isSendingNotificationRef.current
+          ) {
+            const currentRoom = rooms.find(r => r.id === activeRoomId);
+            if (currentRoom && !currentRoom.logs.some(l => l.title === "📧 式完了通知送信")) {
+              // ロックを掛ける
+              isSendingNotificationRef.current = true;
+              sentFinishedEmailsRef.current.add(activeRoomId);
+              localStorage.setItem(storageKey, "true");
+
+              fetch(activeGasUrl, {
+                method: "POST",
+                headers: { "Content-Type": "text/plain;charset=utf-8" },
+                body: JSON.stringify({ action: "notifyFinished", id: activeRoomId, room: currentRoom }),
+              })
+                .then(() => {
+                  isSendingNotificationRef.current = false;
+                })
+                .catch(err => {
+                  console.warn("notifyFinished err:", err);
+                  isSendingNotificationRef.current = false;
+                });
+              
+              // ログに残して二重送信を防止
+              addLog("📧 式完了通知送信", "新郎新婦の結婚誓約情報を永久保存アーカイブへ登録完了しました。", "info");
+            }
           }
         }
       }
@@ -919,10 +942,24 @@ export default function App() {
           });
 
           setGuests((prevGuests) => {
-            const prevStr = JSON.stringify(prevGuests);
-            const remoteStr = JSON.stringify(remoteRoom.guests || []);
-            if (prevStr !== remoteStr) {
-              return remoteRoom.guests || [];
+            const remoteGuests = remoteRoom.guests || [];
+            let isChanged = false;
+            
+            const updated = prevGuests.map(pg => {
+              if (pg.isBug || pg.name.startsWith("🌸") || pg.name.startsWith("⚡") || pg.name.startsWith("🌙") || pg.name.startsWith("👑") || pg.name.startsWith("🛡️")) {
+                return pg;
+              }
+              const rg = remoteGuests.find(g => g.id === pg.id);
+              if (rg && (rg.status !== pg.status || rg.isSquished !== pg.isSquished)) {
+                isChanged = true;
+                return { ...pg, status: rg.status, isSquished: rg.isSquished };
+              }
+              return pg;
+            });
+
+            const newGuests = remoteGuests.filter(rg => !prevGuests.some(pg => pg.id === rg.id));
+            if (newGuests.length > 0 || isChanged) {
+              return [...updated, ...newGuests];
             }
             return prevGuests;
           });

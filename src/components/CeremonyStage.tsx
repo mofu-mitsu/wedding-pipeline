@@ -93,12 +93,27 @@ export const CeremonyStage: React.FC<StageProps> = ({
   const [flushedEarGroom, setFlushedEarGroom] = useState(false);
   const [activeSquishGuestId, setActiveSquishGuestId] = useState<string | null>(null);
   
-  const [bigEmoji, setBigEmoji] = useState<{emoji: string, active: boolean, type: "bounce" | "spin" | "zoom"}>({emoji: "", active: false, type: "bounce"});
+  interface FloatingEmoji {
+    id: string;
+    emoji: string;
+    type: "bounce" | "spin" | "zoom";
+    x: number;
+    y: number;
+  }
+  const [floatingEmojis, setFloatingEmojis] = useState<FloatingEmoji[]>([]);
 
   const triggerBigEmoji = (emoji: string, type: "bounce" | "spin" | "zoom" = "bounce") => {
-    setBigEmoji({ emoji, active: true, type });
+    const id = `big-${Date.now()}-${Math.random()}`;
+    const newEmoji: FloatingEmoji = {
+      id,
+      emoji,
+      type,
+      x: 15 + Math.random() * 70,
+      y: 30 + Math.random() * 40,
+    };
+    setFloatingEmojis(prev => [...prev.slice(-12), newEmoji]);
     setTimeout(() => {
-      setBigEmoji(prev => ({ ...prev, active: false }));
+      setFloatingEmojis(prev => prev.filter(e => e.id !== id));
     }, 2500);
   };
 
@@ -193,60 +208,71 @@ export const CeremonyStage: React.FC<StageProps> = ({
       return;
     }
 
-    const latestLog = logs[0];
-    if (!latestLog) return;
-    
-    // すでに処理済み、あるいは昔の読み込みログならスルー
-    if (processedLogIdsRef.current.has(latestLog.id)) return;
-    processedLogIdsRef.current.add(latestLog.id);
+    const now = Date.now();
+    // 逆順（古い順）に並べ替えて、未処理かつ直近（8秒以内）のもののみ処理する
+    const unhandledNewLogs = [...logs]
+      .filter(log => {
+        const parts = log.id.split("-");
+        const ts = parseInt(parts[1], 10);
+        const isNew = !isNaN(ts) && (now - ts) < 8000;
+        const isProcessed = processedLogIdsRef.current.has(log.id);
+        return isNew && !isProcessed;
+      })
+      .reverse();
 
-    const titleLower = latestLog.title.toLowerCase();
-    const textLower = latestLog.text.toLowerCase();
+    if (unhandledNewLogs.length === 0) return;
 
-    // Dynamically fire local big floating emoji animation for everyone when any user triggers gift logs!
-    if (titleLower.includes("シャンパン") || textLower.includes("🥂")) {
-      triggerBigEmoji("🥂", "spin");
-      if (enableSound) sfx.playCheerSound();
-    } else if (titleLower.includes("寿司") || textLower.includes("🍣")) {
-      triggerBigEmoji("🍣", "bounce");
-      if (enableSound) sfx.playCheerSound();
-    } else if (titleLower.includes("ケーキ") || textLower.includes("🍰") || textLower.includes("🎂")) {
-      triggerBigEmoji("🍰", "zoom");
-      spawnParticles("🎉", 50);
-      spawnParticles("🍰", 30);
-      if (enableSound) sfx.playWeddingBell();
-    } else if (titleLower.includes("花束") || titleLower.includes("ブーケ") || textLower.includes("💐")) {
-      triggerBigEmoji("💐", "zoom");
-      spawnParticles("🌸", 20);
-      spawnParticles("🌹", 20);
-      if (enableSound) sfx.playWeddingBell();
-    } else if (titleLower.includes("鍋") || textLower.includes("🍲")) {
-      triggerBigEmoji("🍲", "bounce");
-      if (enableSound) sfx.playCheerSound();
-    } else if (titleLower.includes("麻婆") || titleLower.includes("カレー") || textLower.includes("🍛")) {
-      triggerBigEmoji("🍛", "zoom");
-      if (enableSound) sfx.playCheerSound();
-    } else if (titleLower.includes("フラワー") || titleLower.includes("紙吹雪") || textLower.includes("🎉") || titleLower.includes("🌸")) {
-      triggerBigEmoji("🎉", "zoom");
-      spawnParticles("🌸", 15);
-      spawnParticles("✨", 15);
-      spawnParticles("🎉", 15);
-      spawnParticles("🌹", 10);
-      if (enableSound) sfx.playCheerSound();
-    } else if (titleLower.includes("吻合") || titleLower.includes("キス") || textLower.includes("💋")) {
-      triggerBigEmoji("💋", "zoom");
-      spawnParticles("😚", 30);
-      spawnParticles("💕", 30);
-      if (enableSound) sfx.playHoldLockSound();
-    } else if (titleLower.includes("芋虫") || textLower.includes("🐛")) {
-      triggerBigEmoji("🐛", "bounce");
-      spawnParticles("🐛", 30);
-      spawnParticles("🌿", 20);
-      if (enableSound) sfx.playBuzz();
-    } else if (titleLower.includes("予言") || titleLower.includes("トリガー発動")) {
-      spawnParticles("🌟", 20);
-      if (enableSound) sfx.playCheerSound();
-    }
+    unhandledNewLogs.forEach(newLog => {
+      processedLogIdsRef.current.add(newLog.id);
+
+      const titleLower = newLog.title.toLowerCase();
+      const textLower = newLog.text.toLowerCase();
+
+      // Dynamically fire local big floating emoji animation for everyone when any user triggers gift logs!
+      if (titleLower.includes("シャンパン") || textLower.includes("🥂")) {
+        triggerBigEmoji("🥂", "spin");
+        if (enableSound) sfx.playCheerSound();
+      } else if (titleLower.includes("寿司") || textLower.includes("🍣")) {
+        triggerBigEmoji("🍣", "bounce");
+        if (enableSound) sfx.playCheerSound();
+      } else if (titleLower.includes("ケーキ") || textLower.includes("🍰") || textLower.includes("🎂")) {
+        triggerBigEmoji("🍰", "zoom");
+        spawnParticles("🎉", 50);
+        spawnParticles("🍰", 30);
+        if (enableSound) sfx.playWeddingBell();
+      } else if (titleLower.includes("花束") || titleLower.includes("ブーケ") || textLower.includes("💐")) {
+        triggerBigEmoji("💐", "zoom");
+        spawnParticles("🌸", 20);
+        spawnParticles("🌹", 20);
+        if (enableSound) sfx.playWeddingBell();
+      } else if (titleLower.includes("鍋") || textLower.includes("🍲")) {
+        triggerBigEmoji("🍲", "bounce");
+        if (enableSound) sfx.playCheerSound();
+      } else if (titleLower.includes("麻婆") || titleLower.includes("カレー") || textLower.includes("🍛")) {
+        triggerBigEmoji("🍛", "zoom");
+        if (enableSound) sfx.playCheerSound();
+      } else if (titleLower.includes("フラワー") || titleLower.includes("紙吹雪") || textLower.includes("🎉") || titleLower.includes("🌸")) {
+        triggerBigEmoji("🎉", "zoom");
+        spawnParticles("🌸", 15);
+        spawnParticles("✨", 15);
+        spawnParticles("🎉", 15);
+        spawnParticles("🌹", 10);
+        if (enableSound) sfx.playCheerSound();
+      } else if (titleLower.includes("吻合") || titleLower.includes("キス") || textLower.includes("💋")) {
+        triggerBigEmoji("💋", "zoom");
+        spawnParticles("😚", 30);
+        spawnParticles("💕", 30);
+        if (enableSound) sfx.playHoldLockSound();
+      } else if (titleLower.includes("芋虫") || textLower.includes("🐛")) {
+        triggerBigEmoji("🐛", "bounce");
+        spawnParticles("🐛", 30);
+        spawnParticles("🌿", 20);
+        if (enableSound) sfx.playBuzz();
+      } else if (titleLower.includes("予言") || titleLower.includes("トリガー発動")) {
+        spawnParticles("🌟", 20);
+        if (enableSound) sfx.playCheerSound();
+      }
+    });
   }, [logs]);
 
   // Ultra intelligent personalized speech generator mapping every character's custom typology!
@@ -1113,8 +1139,8 @@ export const CeremonyStage: React.FC<StageProps> = ({
     <div id="stage-panel" className="bg-wedding-ivory border border-wedding-border rounded-3xl p-6 shadow-xl flex flex-col relative min-h-[600px] overflow-hidden">
       
       {/* Dynamic Big Emoji Overlay */}
-      {bigEmoji.active && (
-        <div className="absolute inset-0 z-[100] flex items-center justify-center pointer-events-none select-none overflow-hidden">
+      {floatingEmojis.length > 0 && (
+        <div className="absolute inset-0 z-[100] pointer-events-none select-none overflow-hidden">
           <style>{`
             @keyframes emojiBounce {
               0%, 20%, 50%, 80%, 100% { transform: translateY(0) scale(1); opacity: 1; }
@@ -1146,9 +1172,21 @@ export const CeremonyStage: React.FC<StageProps> = ({
               animation: emojiZoom 2s ease-out forwards;
             }
           `}</style>
-          <div className={`text-[120px] drop-shadow-2xl big-emoji-anim-${bigEmoji.type}`}>
-            {bigEmoji.emoji}
-          </div>
+          {floatingEmojis.map((e) => (
+            <div
+              key={e.id}
+              className="absolute flex items-center justify-center"
+              style={{
+                left: `${e.x}%`,
+                top: `${e.y}%`,
+                transform: "translate(-50%, -50%)",
+              }}
+            >
+              <div className={`text-[120px] drop-shadow-2xl big-emoji-anim-${e.type}`}>
+                {e.emoji}
+              </div>
+            </div>
+          ))}
           {/* Ambient flash overlay */}
           <div className="absolute inset-0 bg-gradient-to-t from-white/40 to-transparent animate-pulse rounded-3xl mix-blend-overlay"></div>
         </div>
