@@ -275,7 +275,7 @@ export const GroomBrideSetup: React.FC<SetupProps> = ({
                   value={groom.typologySeat || ""}
                   onChange={(e) => setGroom({ ...groom, typologySeat: e.target.value })}
                   className="flex-1 bg-white border border-wedding-border rounded px-2 py-1 text-xs text-wedding-dark focus:outline-none focus:border-brand-cyan uppercase"
-                  placeholder="例: ENTJ, LIE"
+                  placeholder="例: INTP"
                 />
                 <select
                   value={groom.typologySeat || ""}
@@ -469,7 +469,7 @@ export const GroomBrideSetup: React.FC<SetupProps> = ({
                   value={bride.typologySeat || ""}
                   onChange={(e) => setBride({ ...bride, typologySeat: e.target.value })}
                   className="flex-1 bg-white border border-wedding-border rounded px-2 py-1 text-xs text-wedding-dark focus:outline-none focus:border-brand-pink uppercase"
-                  placeholder="例: LII, INTJ"
+                  placeholder="例: INTJ"
                 />
                 <select
                   value={bride.typologySeat || ""}
