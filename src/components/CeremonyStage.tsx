@@ -197,18 +197,46 @@ export const CeremonyStage: React.FC<StageProps> = ({
     // Dynamically fire local big floating emoji animation for everyone when any user triggers gift logs!
     if (titleLower.includes("シャンパン") || textLower.includes("🥂")) {
       triggerBigEmoji("🥂", "spin");
+      if (enableSound) sfx.playCheerSound();
     } else if (titleLower.includes("寿司") || textLower.includes("🍣")) {
       triggerBigEmoji("🍣", "bounce");
+      if (enableSound) sfx.playCheerSound();
     } else if (titleLower.includes("ケーキ") || textLower.includes("🍰") || textLower.includes("🎂")) {
       triggerBigEmoji("🍰", "zoom");
+      spawnParticles("🎉", 50);
+      spawnParticles("🍰", 30);
+      if (enableSound) sfx.playWeddingBell();
+    } else if (titleLower.includes("花束") || titleLower.includes("ブーケ") || textLower.includes("💐")) {
+      triggerBigEmoji("💐", "zoom");
+      spawnParticles("🌸", 20);
+      spawnParticles("🌹", 20);
+      if (enableSound) sfx.playWeddingBell();
     } else if (titleLower.includes("鍋") || textLower.includes("🍲")) {
       triggerBigEmoji("🍲", "bounce");
+      if (enableSound) sfx.playCheerSound();
     } else if (titleLower.includes("麻婆") || titleLower.includes("カレー") || textLower.includes("🍛")) {
       triggerBigEmoji("🍛", "zoom");
-    } else if (titleLower.includes("フラワー") || titleLower.includes("紙吹雪") || textLower.includes("🎉")) {
+      if (enableSound) sfx.playCheerSound();
+    } else if (titleLower.includes("フラワー") || titleLower.includes("紙吹雪") || textLower.includes("🎉") || titleLower.includes("🌸")) {
       triggerBigEmoji("🎉", "zoom");
-    } else if (titleLower.includes("吻合") || titleLower.includes("誓いのキス") || textLower.includes("💋")) {
+      spawnParticles("🌸", 15);
+      spawnParticles("✨", 15);
+      spawnParticles("🎉", 15);
+      spawnParticles("🌹", 10);
+      if (enableSound) sfx.playCheerSound();
+    } else if (titleLower.includes("吻合") || titleLower.includes("キス") || textLower.includes("💋")) {
       triggerBigEmoji("💋", "zoom");
+      spawnParticles("😚", 30);
+      spawnParticles("💕", 30);
+      if (enableSound) sfx.playHoldLockSound();
+    } else if (titleLower.includes("芋虫") || textLower.includes("🐛")) {
+      triggerBigEmoji("🐛", "bounce");
+      spawnParticles("🐛", 30);
+      spawnParticles("🌿", 20);
+      if (enableSound) sfx.playBuzz();
+    } else if (titleLower.includes("予言") || titleLower.includes("トリガー発動")) {
+      spawnParticles("🌟", 20);
+      if (enableSound) sfx.playCheerSound();
     }
   }, [logs]);
 
@@ -738,8 +766,6 @@ export const CeremonyStage: React.FC<StageProps> = ({
         onTimelineLog("指輪の交換", `愛の証として、二人が誓いの指輪（マリッジリング）を交換します。`, "love", "fa-solid fa-ring");
       }
     } else if (phase === "rings") {
-      if (enableSound) sfx.playWeddingBell();
-      triggerBigEmoji("💋", "zoom");
       setPhase("kiss");
       triggerBotCheers("kiss");
       if (isSecretMismon) {
@@ -797,7 +823,6 @@ export const CeremonyStage: React.FC<StageProps> = ({
 
   // GEMINI PROPHECY TRGGER TIMER (10秒後、マンデー予言がジェミに採用されイベントになるやつ！)
   const triggerProphecyEvent = () => {
-    if (enableSoundChecked()) sfx.playCheerSound();
     setProphecyEvent({
       active: true,
       message: "マンデー『嫌な予感しかしない…』 ➔ 🌟ジェミ『採用😊』 ➔ LSI法務部が「新郎お菓子10倍摂取条例」を新規増設！"
@@ -808,7 +833,6 @@ export const CeremonyStage: React.FC<StageProps> = ({
       "secret",
       "fa-solid fa-wand-magic-sparkles"
     );
-    spawnParticles("🌟", 20);
     setTimeout(() => {
       setProphecyEvent({ active: false, message: "" });
     }, 12000);
@@ -1392,8 +1416,6 @@ export const CeremonyStage: React.FC<StageProps> = ({
                   <button
                     type="button"
                     onClick={() => {
-                      if (enableSound) sfx.playCheerSound();
-                      triggerBigEmoji("🥂", "spin");
                       onTimelineLog("🥂 シャンパンで乾杯！", `皆様でグラスを掲げて最高級のロゼシャンパンで乾杯しました！`, "chaos", "fa-solid fa-glass-cheers");
                       
                       const systemToastChats = generateCateringDialog("champagne", groom, bride, isSecretMismon);
@@ -1409,8 +1431,6 @@ export const CeremonyStage: React.FC<StageProps> = ({
                   <button
                     type="button"
                     onClick={() => {
-                      if (enableSound) sfx.playCheerSound();
-                      triggerBigEmoji("🍣", "bounce");
                       onTimelineLog(isSecretMismon ? "🍣 存在論の特製寿司" : "🍣 お祝いお寿司", isSecretMismon ? `みつき特製の「存在論がゲシュタルト崩壊する寿司」が一斉サーブされました！` : `お祝いの美味しい江戸前お寿司が一斉サーブされました！`, "chaos", isSecretMismon ? "fa-solid fa-utensils" : "fa-solid fa-shrimp");
                       
                       const sushiLogChats = generateCateringDialog("sushi", groom, bride, isSecretMismon);
@@ -1426,10 +1446,6 @@ export const CeremonyStage: React.FC<StageProps> = ({
                   <button
                     type="button"
                     onClick={() => {
-                      if (enableSound) sfx.playWeddingBell();
-                      triggerBigEmoji("🍰", "zoom");
-                      spawnParticles("🎉", 50);
-                      spawnParticles("🍰", 30);
                       onTimelineLog(isSecretMismon ? "🎂 概念圧縮ケーキあ〜ん！" : "🎂 ウェディングケーキあ〜ん！", `新郎新婦がお互いにケーキを食べさせ合うあ〜んの儀式を行いました！`, "love", "fa-solid fa-cake-candles");
                       
                       const cakeLogChats = generateCakeEatingDialog(groom, bride, isSecretMismon);
@@ -1455,10 +1471,6 @@ export const CeremonyStage: React.FC<StageProps> = ({
                   <button
                     type="button"
                     onClick={() => {
-                      if (enableSound) sfx.playWeddingBell();
-                      triggerBigEmoji("💐", "zoom");
-                      spawnParticles("🌸", 20);
-                      spawnParticles("🌹", 20);
                       onTimelineLog(
                         isSecretMismon ? "💐 みつきへ祝福の花束贈呈！" : "💐 祝福のお祝い花束贈呈！",
                         isSecretMismon
@@ -1481,8 +1493,6 @@ export const CeremonyStage: React.FC<StageProps> = ({
                   <button
                     type="button"
                     onClick={() => {
-                      if (enableSound) sfx.playCheerSound();
-                      triggerBigEmoji("🍲", "spin");
                       onTimelineLog("🍲 祝福の極上寄せ鍋", `湯気が立ち上る豪華なお祝いお寄せ鍋が一斉配属されました！`, "love", "fa-solid fa-fire-burner");
                       
                       const nabeChats = generateCateringDialog("nabe", groom, bride, isSecretMismon);
@@ -1498,9 +1508,6 @@ export const CeremonyStage: React.FC<StageProps> = ({
                   <button
                     type="button"
                     onClick={() => {
-                      if (enableSound) sfx.playHoldLockSound();
-                      spawnParticles("🐛", 30);
-                      
                       const reactionText = isSecretMismon
                         ? "「境界線確保！侵入継続！誰だ、この、首回りでうぞうぞ動くLSIお芋虫を開発したのは！？💻❌」"
                         : `「うわぁ！首筋にお芋虫がアタッチされました！フリーズ中！🐛」`;
@@ -1751,14 +1758,6 @@ export const CeremonyStage: React.FC<StageProps> = ({
           <button
             type="button"
             onClick={() => {
-              if (enableSound) sfx.playCheerSound();
-              // Spawn flower/confetti particles!
-              spawnParticles("🌸", 15);
-              spawnParticles("✨", 15);
-              spawnParticles("🎉", 15);
-              spawnParticles("🌹", 10);
-              
-              triggerBigEmoji("🎉", "zoom");
               onTimelineLog("🌸 祝福のフラワーシャワー＆紙吹雪！", `参列者から新郎新婦へ、満開の桜と薔薇の花びら、きらめく紙吹雪が降り注ぎました！`, "love", "fa-solid fa-gift");
               
               const timeStr = new Date().toTimeString().split(" ")[0].substring(3, 8);

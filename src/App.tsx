@@ -296,8 +296,18 @@ export default function App() {
     if (!activeGasUrl || !roomId) return null;
     try {
       const cleanCode = roomId.toLowerCase();
-      // 🌟 &_t キャッシュバスターを付与することで、Safariなどの強力なブラウザ内キャッシュを破砕！
-      const res = await fetch(`${activeGasUrl}?action=getRoom&id=${cleanCode}&_t=${Date.now()}`);
+      // GETだとCORSやキャッシュの問題が起きやすいため、本番環境同様POSTで取得
+      const payload = {
+        action: "getRoom",
+        id: cleanCode,
+      };
+      const res = await fetch(activeGasUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "text/plain;charset=utf-8",
+        },
+        body: JSON.stringify(payload),
+      });
       if (res.ok) {
         const data = await res.json();
         if (data && !data.error) {
@@ -893,9 +903,17 @@ export default function App() {
     const activeGasUrl = gasUrl || DEFAULT_GAS_URL;
     if (activeGasUrl) {
       try {
-        const res = await fetch(
-          `${activeGasUrl}?action=getRoom&id=${codeClean}&_t=${Date.now()}`,
-        );
+        const payload = {
+          action: "getRoom",
+          id: codeClean,
+        };
+        const res = await fetch(activeGasUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "text/plain;charset=utf-8",
+          },
+          body: JSON.stringify(payload),
+        });
         if (res.ok) {
           const data = await res.json();
           if (data && !data.error) {
