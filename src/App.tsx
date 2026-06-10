@@ -972,27 +972,30 @@ export default function App() {
       guests,
       phase,
       systemGage,
+      bgmUrl, // 🌟 ホスト独自のパイプオルガンBGMをお祝い友達画面に全自動同期するためにクラウド化！
       logs: logs || [],
       chats: chats || [],
     };
 
-    // ローカルステートとしての rooms 自身もこのタイミングで完全に同期更新しておく（整合性の完全ロック）
-    setRooms((prev) => {
-      const existing = prev.find((r) => r.id === activeRoomId);
-      if (existing && JSON.stringify(existing) === JSON.stringify(activeRoomPayload)) {
-        return prev;
-      }
-      const filtered = prev.filter((r) => r.id !== activeRoomId);
-      const updated = [...filtered, activeRoomPayload];
-      localStorage.setItem("concept_wedding_rooms_v4", JSON.stringify(updated));
-      return updated;
-    });
-
+    // 🌟 [IME・文字消えバグを100%全滅させるための物理デプロイ防止構造]
+    // rooms 自体の直接的なステート更新(setRooms)を 1文字打つたびに行うと、React の全体ツリー再描画が起きてスマホ等の変換バッファが白紙になり文字が消えます。
+    // そのため、localStorage/rooms への同期、およびクラウド保存(saveRoomToGas)の両方を「タイピング完了 1.5秒後」にデバウンス内へ集約、完全無音化防衛！
     const timer = setTimeout(() => {
+      setRooms((prev) => {
+        const existing = prev.find((r) => r.id === activeRoomId);
+        if (existing && JSON.stringify(existing) === JSON.stringify(activeRoomPayload)) {
+          return prev;
+        }
+        const filtered = prev.filter((r) => r.id !== activeRoomId);
+        const updated = [...filtered, activeRoomPayload];
+        localStorage.setItem("concept_wedding_rooms_v4", JSON.stringify(updated));
+        return updated;
+      });
+
       saveRoomToGas(activeRoomPayload);
     }, 1500); // 1.5秒デバウンスでGAS側の負荷を下げながら堅固に保存
     return () => clearTimeout(timer);
-  }, [groom, bride, officiant, groomVow, brideVow, guests, phase, systemGage, logs, chats, activeRoomId, currentUserProfile]);
+  }, [groom, bride, officiant, groomVow, brideVow, guests, phase, systemGage, bgmUrl, logs, chats, activeRoomId, currentUserProfile]);
 
   // ★ バックグラウンドでの4秒おきGASポーリング（全同期コア）
   useEffect(() => {
@@ -1029,10 +1032,20 @@ export default function App() {
             setBrideVow((existing) => existing !== remoteRoom.brideVow ? remoteRoom.brideVow : existing);
           }
 
-          // 進行フェーズ（挙式状態）やゲージ、chats、logs は入力中であっても 100% 同期！（画面がコンパイル中から挙式へと自動で変化するように！）
-          setPhase((existing) => existing !== remoteRoom.phase ? remoteRoom.phase : existing);
+           // 進行フェーズ（挙式状態）やゲージ、chats、logs は入力中であっても 100% 同期！（画面がコンパイル中から挙式へと自動で変化するように！）
+          setPhase((existing) => {
+            if (existing !== remoteRoom.phase) {
+              // 🌟 主催者が式を開宴（相棒入場や誓いなど）したら、ゲストを全自動で「待合室」から「本番の挙式会場（祭壇ステージ）」へとリアルタイムおもてなし自動誘導！
+              if (remoteRoom.phase !== "setup" && remoteRoom.phase !== "completed") {
+                setActiveTab("altar");
+              }
+              return remoteRoom.phase;
+            }
+            return existing;
+          });
           setSystemGage((existing) => JSON.stringify(existing) !== JSON.stringify(remoteRoom.systemGage) ? remoteRoom.systemGage : existing);
-          
+          setBgmUrl((existing) => existing !== remoteRoom.bgmUrl ? remoteRoom.bgmUrl || "" : existing); // 🌟 パイプオルガンBGMをお祝い友達画面に全オート同期！
+
           setGuests((existing) => {
             const remoteGuests = remoteRoom.guests || [];
             // 自分自身の出席情報や作成されたローカルゲストレコードを最新マージ
@@ -1505,6 +1518,7 @@ export default function App() {
       setGuests(finalRoomData.guests || []);
       setPhase(finalRoomData.phase);
       setSystemGage(finalRoomData.systemGage);
+      setBgmUrl(finalRoomData.bgmUrl || ""); // 🌟 友達がお部屋に参列した瞬間に、主催者がセット済みのBGMをいきなりロード・再生！
       setLogs(finalRoomData.logs || []);
       setChats(finalRoomData.chats || []);
     }

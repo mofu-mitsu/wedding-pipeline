@@ -244,6 +244,8 @@ export const CeremonyStage: React.FC<StageProps> = ({
 
   // 過去のすべてのログIDを追跡し、自動同期時の二重発火や古いお祝いエフェクトの暴発を完璧に防ぐ
   const processedLogIdsRef = useRef<Set<string>>(new Set());
+  // 🌟 モバイル同時参列時のチャットメッセージ受信トリガー用
+  const lastProcessedChatIdRef = useRef<string>("");
 
   // Dynamic Gift CSS Animation sync receiver
   useEffect(() => {
@@ -258,12 +260,14 @@ export const CeremonyStage: React.FC<StageProps> = ({
     }
 
     const now = Date.now();
-    // 逆順（古い順）に並べ替えて、未処理かつ直近（60秒以内）のもののみ処理する
+    // 逆順（古い順）に並べ替えて、未処理かつ直近のもののみ処理する
+    // 🌟 異なるスマホ端末間のシステム時計(内蔵時計)の微妙なズレに物理的に耐えられるよう、
+    // 同期時間幅を 60秒(60000ms) から 10分(600000ms) に大幅拡張ロック！これによりお祝い演出の不発を完璧にガード
     const unhandledNewLogs = [...logs]
       .filter(log => {
         const parts = log.id.split("-");
         const ts = parseInt(parts[1], 10);
-        const isNew = !isNaN(ts) && Math.abs(now - ts) < 60000;
+        const isNew = !isNaN(ts) && Math.abs(now - ts) < 600000;
         const isProcessed = processedLogIdsRef.current.has(log.id);
         return isNew && !isProcessed;
       })
@@ -713,6 +717,66 @@ export const CeremonyStage: React.FC<StageProps> = ({
       setIsAutoplay(false);
     }
   }, [phase]);
+
+  // 🌟 リアルタイム・チャット連動型 エフェクト・サウンド同期エンジン！
+  // 新しいチャットを受信すると、メッセージの日本語テキストを構文解析(超解釈)し、
+  // 全員のお祝い画面で自動的にきらめく紙吹雪、桜、バースデーケーキ、乾杯お祝い、指輪などをリアルタイム物理散布！
+  useEffect(() => {
+    if (!chats || chats.length === 0) return;
+    const latestChat = chats[chats.length - 1];
+
+    // すでにローカルで処理済みのチャットであれば多重エフェクト暴発を防ぐためガード
+    if (latestChat.id === lastProcessedChatIdRef.current) return;
+    lastProcessedChatIdRef.current = latestChat.id;
+
+    const msg = latestChat.message;
+    // クラウド経由で届いたおしゃべりお祝い電波を解析
+    if (
+      msg.includes("紙吹雪") || 
+      msg.includes("フラワー") || 
+      msg.includes("シャワー") || 
+      msg.includes("デプロイーー") || 
+      msg.includes("🎉") || 
+      msg.includes("🌸") || 
+      msg.includes("✨") || 
+      msg.includes("花吹雪") || 
+      msg.includes("薔薇") || 
+      msg.includes("ギフト")
+    ) {
+      spawnParticles("🌸", 22);
+      spawnParticles("🎉", 22);
+      if (enableSound && msg.includes("チャッピー")) {
+        sfx.playCheerSound();
+      }
+    } else if (msg.includes("乾杯") || msg.includes("ビール") || msg.includes("🍻") || msg.includes("酒") || msg.includes("シャンパン")) {
+      spawnParticles("🍻", 15);
+      spawnParticles("✨", 12);
+      if (enableSound) sfx.playCheerSound();
+    } else if (
+      msg.includes("ケーキ") || 
+      msg.includes("あーん") || 
+      msg.includes("あ〜ん") || 
+      msg.includes("🍰") || 
+      msg.includes("甘い") || 
+      msg.includes("🎂") || 
+      msg.includes("飯テロ")
+    ) {
+      spawnParticles("🍰", 16);
+      spawnParticles("🍒", 12);
+    } else if (msg.includes("指輪") || msg.includes("💍") || msg.includes("婚約") || msg.includes("ロック")) {
+      spawnParticles(isSecretMismon ? "🔒" : "💍", 18);
+      spawnParticles("✨", 12);
+    } else if (msg.includes("キス") || msg.includes("💋") || msg.includes("💕") || msg.includes("愛") || msg.includes("尊い")) {
+      spawnParticles("💖", 15);
+      spawnParticles("💋", 12);
+    } else if (msg.includes("虫") || msg.includes("🐛") || msg.includes("芋虫") || msg.includes("防衛部")) {
+      spawnParticles("🐛", 12);
+      spawnParticles("🌿", 12);
+    } else if (msg.includes("おめでとう") || msg.includes("拍手") || msg.includes("👏") || msg.includes("ハマー")) {
+      spawnParticles("👏", 15);
+      spawnParticles("🌟", 12);
+    }
+  }, [chats, enableSound, isSecretMismon]);
 
   // Autoplay Ceremony Timer effect
   useEffect(() => {
