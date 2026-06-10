@@ -848,6 +848,63 @@ export default function App() {
     }
   }, []);
 
+  // 🌟 [グローバルIME入力絶対防衛トラッカー]
+  // iOSや各種ブラウザの「入力途中」や「IME変換中」の極小タイミングをグローバル変数で100%マーキング検知
+  useEffect(() => {
+    const handleFocus = (e: Event) => {
+      const tgt = e.target as HTMLElement;
+      if (tgt && (tgt.tagName === "INPUT" || tgt.tagName === "TEXTAREA" || tgt.tagName === "SELECT")) {
+        (window as any).__inputFocused = true;
+      }
+    };
+    const handleBlur = (e: Event) => {
+      const tgt = e.target as HTMLElement;
+      if (tgt && (tgt.tagName === "INPUT" || tgt.tagName === "TEXTAREA" || tgt.tagName === "SELECT")) {
+        // 少しタイムラグを設けて同期開始（Blurしてすぐに同期が起きるのを防ぐ安全バッファ）
+        setTimeout(() => {
+          const activeEl = document.activeElement;
+          const stillInputting = activeEl && (
+            activeEl.tagName === "INPUT" || 
+            activeEl.tagName === "TEXTAREA" || 
+            activeEl.tagName === "SELECT"
+          );
+          if (!stillInputting) {
+            (window as any).__inputFocused = false;
+          }
+        }, 150);
+      }
+    };
+    const handleCompositionStart = () => {
+      (window as any).__inputFocused = true;
+    };
+    const handleCompositionEnd = () => {
+      // 変換確定後、少しだけバッファを置いて上書きをプロテクトする
+      setTimeout(() => {
+        const activeEl = document.activeElement;
+        const stillInputting = activeEl && (
+          activeEl.tagName === "INPUT" || 
+          activeEl.tagName === "TEXTAREA" || 
+          activeEl.tagName === "SELECT"
+        );
+        if (!stillInputting) {
+          (window as any).__inputFocused = false;
+        }
+      }, 300);
+    };
+
+    document.addEventListener("focusin", handleFocus, true);
+    document.addEventListener("focusout", handleBlur, true);
+    document.addEventListener("compositionstart", handleCompositionStart, true);
+    document.addEventListener("compositionend", handleCompositionEnd, true);
+
+    return () => {
+      document.removeEventListener("focusin", handleFocus, true);
+      document.removeEventListener("focusout", handleBlur, true);
+      document.removeEventListener("compositionstart", handleCompositionStart, true);
+      document.removeEventListener("compositionend", handleCompositionEnd, true);
+    };
+  }, []);
+
   // Hook 1: 部屋切り替え(activeRoomId)やrooms変更検知時の、各Stateへの完全一括同期ロード
   useEffect(() => {
     if (!activeRoomId) return;
@@ -1006,12 +1063,12 @@ export default function App() {
       // 🌟 [入力防衛シールド] 現在フォーカス中の入力欄 (名前, 誓い, メッセージ等) がある場合、
       // スマホ等でのキーボード入力が突然上書き消失するのを 4.5倍 物理プロテクトします。
       const activeEl = document.activeElement;
-      const isInputFocused = activeEl && (
+      const isInputFocused = (activeEl && (
         activeEl.tagName === "INPUT" || 
         activeEl.tagName === "TEXTAREA" || 
         activeEl.tagName === "SELECT"
-      );
-      const isEditingSetup = activeTab === "setup"; // 主催者設定画面を表示中
+      )) || (window as any).__inputFocused === true;
+      const isEditingSetup = activeTab === "setup"; // 主使者設定画面を表示中
 
       const remoteRoom = await fetchRoomFromGas(cleanCode);
       if (remoteRoom) {

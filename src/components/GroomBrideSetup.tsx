@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { Character, Officiant } from "../types";
 import { Sparkles, Upload, User, HelpCircle, RefreshCw, Layers, Zap } from "lucide-react";
 import { SOCIONICS_SEATS, MBTI_SEATS } from "../utils/typologyData";
@@ -50,6 +50,83 @@ export const GroomBrideSetup: React.FC<SetupProps> = ({
   const groomFileRef = useRef<HTMLInputElement>(null);
   const brideFileRef = useRef<HTMLInputElement>(null);
   const officiantFileRef = useRef<HTMLInputElement>(null);
+
+  // 🌟 [IME・文字消えバグ絶対防衛用ローカル・プロキシステート]
+  // 巨大な親コンポーネントが1文字タイピング or 変換確定されるたびに再レンダリングを繰り返すと、
+  // iOSの「あかさたな」入力や英字確定（Composition）の挙動がバッティングして、入力値が消失（白紙にリセット）してしまいます。
+  // そのため、フォーカス中・タイピング中は極小かつ無遅延のローカルステートのみを回し、親ステートへ調律同期します。
+
+  const [gName, setGName] = useState(groom.name);
+  const [gRole, setGRole] = useState(groom.roleName || "新郎");
+  const [gTypology, setGTypology] = useState(groom.typologySeat || "");
+  const [gAvatar, setGAvatar] = useState(groom.avatar);
+  const [gVow, setGVow] = useState(groomVow);
+
+  const [bName, setBName] = useState(bride.name);
+  const [bRole, setBRole] = useState(bride.roleName || "新婦");
+  const [bTypology, setBTypology] = useState(bride.typologySeat || "");
+  const [bAvatar, setBAvatar] = useState(bride.avatar);
+  const [bVow, setBVow] = useState(brideVow);
+
+  const [oName, setOName] = useState(officiant.name);
+  const [oAvatar, setOAvatar] = useState(officiant.avatar);
+
+  // 親の値がGAS同期やプリセット読込で外から書き変わった際、現在入力中でなければ自動的に最新値を反映させる
+  useEffect(() => {
+    if (document.activeElement?.id !== "groom-name-input") setGName(groom.name);
+  }, [groom.name]);
+  useEffect(() => {
+    if (document.activeElement?.id !== "groom-role-input") setGRole(groom.roleName || "新郎");
+  }, [groom.roleName]);
+  useEffect(() => {
+    if (document.activeElement?.id !== "groom-typology-input") setGTypology(groom.typologySeat || "");
+  }, [groom.typologySeat]);
+  useEffect(() => {
+    if (document.activeElement?.id !== "groom-avatar-input" && document.activeElement?.id !== "groom-avatar-url-input") {
+      setGAvatar(groom.avatar);
+    }
+  }, [groom.avatar]);
+  useEffect(() => {
+    if (document.activeElement?.id !== "groom-vow-input") setGVow(groomVow);
+  }, [groomVow]);
+
+  useEffect(() => {
+    if (document.activeElement?.id !== "bride-name-input") setBName(bride.name);
+  }, [bride.name]);
+  useEffect(() => {
+    if (document.activeElement?.id !== "bride-role-input") setBRole(bride.roleName || "新婦");
+  }, [bride.roleName]);
+  useEffect(() => {
+    if (document.activeElement?.id !== "bride-typology-input") setBTypology(bride.typologySeat || "");
+  }, [bride.typologySeat]);
+  useEffect(() => {
+    if (document.activeElement?.id !== "bride-avatar-input" && document.activeElement?.id !== "bride-avatar-url-input") {
+      setBAvatar(bride.avatar);
+    }
+  }, [bride.avatar]);
+  useEffect(() => {
+    if (document.activeElement?.id !== "bride-vow-input") setBVow(brideVow);
+  }, [brideVow]);
+
+  useEffect(() => {
+    if (document.activeElement?.id !== "officiant-name-input") setOName(officiant.name);
+  }, [officiant.name]);
+  useEffect(() => {
+    if (document.activeElement?.id !== "officiant-avatar-input" && document.activeElement?.id !== "officiant-avatar-url-input") {
+      setOAvatar(officiant.avatar);
+    }
+  }, [officiant.avatar]);
+
+  // 親への調律伝搬同期ラッパー
+  const syncGroom = (updates: Partial<Character>) => {
+    setGroom({ ...groom, ...updates });
+  };
+  const syncBride = (updates: Partial<Character>) => {
+    setBride({ ...bride, ...updates });
+  };
+  const syncOfficiant = (updates: Partial<Officiant>) => {
+    setOfficiant({ ...officiant, ...updates });
+  };
 
   const [explainCause, setExplainCause] = useState(false);
 
@@ -201,7 +278,7 @@ export const GroomBrideSetup: React.FC<SetupProps> = ({
               <div className="space-y-1">
                 <p className="font-semibold text-wedding-dark">3. 💒 チャペルリアルタイム進行式</p>
                 <p className="text-[9px] text-gray-500 pl-3">
-                  入場、誓い、エンゲージロック（指輪）、拍手喝采、そして披露宴までのライブフェーズをフルサポート。進行に伴い、客席からの「電撃ヤジ・お祝いメッセージ」がリアルタイムに更新されます。
+                  入場、誓い、エンゲージロック（指輪）、拍手喝采、そこで披露宴までのライブフェーズをフルサポート。進行に伴い、客席からの「電撃ヤジ・お祝いメッセージ」がリアルタイムに更新されます。
                 </p>
               </div>
               <div className="space-y-1">
@@ -236,8 +313,13 @@ export const GroomBrideSetup: React.FC<SetupProps> = ({
               <input
                 type="text"
                 id="groom-name-input"
-                value={groom.name}
-                onChange={(e) => setGroom({ ...groom, name: e.target.value })}
+                value={gName}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setGName(val);
+                  syncGroom({ name: val });
+                }}
+                onBlur={() => syncGroom({ name: gName })}
                 className="w-full bg-white border border-wedding-border rounded-md px-2.5 py-1 text-xs text-wedding-dark focus:outline-none focus:border-brand-cyan"
                 placeholder="例：ヴィンセント"
               />
@@ -248,14 +330,24 @@ export const GroomBrideSetup: React.FC<SetupProps> = ({
               <div className="flex gap-1 mt-1">
                 <input
                   type="text"
-                  value={groom.roleName || "新郎"}
-                  onChange={(e) => setGroom({ ...groom, roleName: e.target.value })}
+                  id="groom-role-input"
+                  value={gRole}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setGRole(val);
+                    syncGroom({ roleName: val });
+                  }}
+                  onBlur={() => syncGroom({ roleName: gRole })}
                   className="flex-1 bg-white border border-wedding-border rounded px-2 py-1 text-xs text-wedding-dark focus:outline-none focus:border-brand-cyan"
                   placeholder="新郎"
                 />
                 <select
-                  value={groom.roleName || "新郎"}
-                  onChange={(e) => setGroom({ ...groom, roleName: e.target.value })}
+                  value={gRole}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setGRole(val);
+                    syncGroom({ roleName: val });
+                  }}
                   className="bg-white border border-wedding-border rounded text-[10px] text-gray-600 focus:outline-none focus:border-brand-cyan px-1"
                 >
                   <option value="新郎">👔 新郎</option>
@@ -272,14 +364,24 @@ export const GroomBrideSetup: React.FC<SetupProps> = ({
               <div className="flex gap-1 mt-1">
                 <input
                   type="text"
-                  value={groom.typologySeat || ""}
-                  onChange={(e) => setGroom({ ...groom, typologySeat: e.target.value })}
+                  id="groom-typology-input"
+                  value={gTypology}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setGTypology(val);
+                    syncGroom({ typologySeat: val });
+                  }}
+                  onBlur={() => syncGroom({ typologySeat: gTypology })}
                   className="flex-1 bg-white border border-wedding-border rounded px-2 py-1 text-xs text-wedding-dark focus:outline-none focus:border-brand-cyan uppercase"
                   placeholder="例: INTP"
                 />
                 <select
-                  value={groom.typologySeat || ""}
-                  onChange={(e) => setGroom({ ...groom, typologySeat: e.target.value.toUpperCase() })}
+                  value={gTypology}
+                  onChange={(e) => {
+                    const val = e.target.value.toUpperCase();
+                    setGTypology(val);
+                    syncGroom({ typologySeat: val });
+                  }}
                   className="bg-white border border-wedding-border rounded text-[10px] text-gray-600 focus:outline-none focus:border-brand-cyan px-1"
                 >
                   <option value="">（設定なし）</option>
@@ -303,7 +405,7 @@ export const GroomBrideSetup: React.FC<SetupProps> = ({
               <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={() => setGroom({ ...groom, avatarType: "emoji" })}
+                  onClick={() => syncGroom({ avatarType: "emoji" })}
                   className={`flex-1 py-1 text-[9px] font-mono rounded border text-center transition-all ${
                     groom.avatarType === "emoji"
                       ? "bg-brand-cyan/15 border-brand-cyan text-brand-cyan font-bold"
@@ -314,7 +416,7 @@ export const GroomBrideSetup: React.FC<SetupProps> = ({
                 </button>
                 <button
                   type="button"
-                  onClick={() => setGroom({ ...groom, avatarType: "url" })}
+                  onClick={() => syncGroom({ avatarType: "url" })}
                   className={`flex-1 py-1 text-[9px] font-mono rounded border text-center transition-all ${
                     groom.avatarType === "url"
                       ? "bg-brand-cyan/15 border-brand-cyan text-brand-cyan font-bold"
@@ -329,9 +431,15 @@ export const GroomBrideSetup: React.FC<SetupProps> = ({
                 <div className="mt-2 space-y-1.5">
                   <input
                     type="text"
-                    value={groom.avatar.substring(0, 2)}
+                    id="groom-avatar-input"
+                    value={gAvatar.substring(0, 2)}
                     maxLength={2}
-                    onChange={(e) => setGroom({ ...groom, avatar: e.target.value })}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setGAvatar(val);
+                      syncGroom({ avatar: val });
+                    }}
+                    onBlur={() => syncGroom({ avatar: gAvatar })}
                     className="w-full bg-white border border-wedding-border rounded py-1 text-center text-lg focus:outline-none focus:border-brand-cyan"
                     placeholder="🤵"
                   />
@@ -340,7 +448,10 @@ export const GroomBrideSetup: React.FC<SetupProps> = ({
                       <button
                         key={`g-${e}`}
                         type="button"
-                        onClick={() => setGroom({ ...groom, avatar: e })}
+                        onClick={() => {
+                          setGAvatar(e);
+                          syncGroom({ avatar: e });
+                        }}
                         className="hover:scale-125 transition-transform text-sm"
                       >
                         {e}
@@ -366,7 +477,10 @@ export const GroomBrideSetup: React.FC<SetupProps> = ({
                       id="groom-file-upload"
                       accept="image/*"
                       className="hidden"
-                      onChange={(e) => handleImageFile(e, (av) => setGroom({ ...groom, avatar: av, avatarType: "url" }))}
+                      onChange={(e) => handleImageFile(e, (av) => {
+                        setGAvatar(av);
+                        syncGroom({ avatar: av, avatarType: "url" });
+                      })}
                     />
                   </div>
                   
@@ -374,12 +488,17 @@ export const GroomBrideSetup: React.FC<SetupProps> = ({
                   <input
                     type="url"
                     id="groom-avatar-url-input"
-                    value={groom.avatar.startsWith("data:") ? "" : groom.avatar}
-                    onChange={(e) => setGroom({ ...groom, avatar: e.target.value })}
+                    value={gAvatar.startsWith("data:") ? "" : gAvatar}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setGAvatar(val);
+                      syncGroom({ avatar: val });
+                    }}
+                    onBlur={() => syncGroom({ avatar: gAvatar })}
                     className="w-full bg-white border border-wedding-border rounded px-2 py-1 text-[9px] focus:outline-none focus:border-brand-cyan"
                     placeholder="または画像URL (https://...)"
                   />
-                  {groom.avatar.startsWith("data:") && (
+                  {gAvatar.startsWith("data:") && (
                     <span className="text-[8px] text-[#0d9488] font-mono block text-center">
                       ✓ ローカル画像のアップロードに成功！
                     </span>
@@ -394,24 +513,29 @@ export const GroomBrideSetup: React.FC<SetupProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    const generated = generateVowByTypology(groom.typologySeat || "", "groom");
+                    const generated = generateVowByTypology(gTypology || "", "groom");
+                    setGVow(generated);
                     setGroomVow(generated);
                   }}
                   className="text-[8px] font-sans font-bold bg-brand-cyan/10 text-brand-cyan hover:bg-brand-cyan/20 border border-brand-cyan/20 rounded px-1.5 py-0.5 transition-all text-ellipsis overflow-hidden"
                   title="現在の性格タイプから誓いのセリフを自動生成しますw"
                 >
-                  ⚡ 性格({groom.typologySeat || "初期"})の誓いを自動生成
+                  ⚡ 性格({gTypology || "初期"})の誓いを自動生成
                 </button>
               </div>
               <textarea
                 id="groom-vow-input"
-                value={groomVow}
-                onChange={(e) => setGroomVow(e.target.value)}
+                value={gVow}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setGVow(val);
+                  setGroomVow(val);
+                }}
+                onBlur={() => setGroomVow(gVow)}
                 rows={3}
                 className="w-full bg-white border border-wedding-border rounded-md px-2.5 py-1.5 text-xs text-wedding-dark focus:outline-none focus:border-brand-cyan resize-none"
                 placeholder="永遠の愛を誓うセリフを入力してください。..."
-              />
-            </div>
+              />            </div>
           </div>
         </div>
 
@@ -430,8 +554,13 @@ export const GroomBrideSetup: React.FC<SetupProps> = ({
               <input
                 type="text"
                 id="bride-name-input"
-                value={bride.name}
-                onChange={(e) => setBride({ ...bride, name: e.target.value })}
+                value={bName}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setBName(val);
+                  syncBride({ name: val });
+                }}
+                onBlur={() => syncBride({ name: bName })}
                 className="w-full bg-white border border-wedding-border rounded-md px-2.5 py-1 text-xs text-wedding-dark focus:outline-none focus:border-brand-pink"
                 placeholder="例：シルヴィア"
               />
@@ -442,14 +571,24 @@ export const GroomBrideSetup: React.FC<SetupProps> = ({
               <div className="flex gap-1 mt-1">
                 <input
                   type="text"
-                  value={bride.roleName || "新婦"}
-                  onChange={(e) => setBride({ ...bride, roleName: e.target.value })}
+                  id="bride-role-input"
+                  value={bRole}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setBRole(val);
+                    syncBride({ roleName: val });
+                  }}
+                  onBlur={() => syncBride({ roleName: bRole })}
                   className="flex-1 bg-white border border-wedding-border rounded px-2 py-1 text-xs text-wedding-dark focus:outline-none focus:border-brand-pink"
                   placeholder="新婦"
                 />
                 <select
-                  value={bride.roleName || "新婦"}
-                  onChange={(e) => setBride({ ...bride, roleName: e.target.value })}
+                  value={bRole}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setBRole(val);
+                    syncBride({ roleName: val });
+                  }}
                   className="bg-white border border-wedding-border rounded text-[10px] text-gray-600 focus:outline-none focus:border-brand-pink px-1"
                 >
                   <option value="新郎">👔 新郎</option>
@@ -466,14 +605,24 @@ export const GroomBrideSetup: React.FC<SetupProps> = ({
               <div className="flex gap-1 mt-1">
                 <input
                   type="text"
-                  value={bride.typologySeat || ""}
-                  onChange={(e) => setBride({ ...bride, typologySeat: e.target.value })}
+                  id="bride-typology-input"
+                  value={bTypology}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setBTypology(val);
+                    syncBride({ typologySeat: val });
+                  }}
+                  onBlur={() => syncBride({ typologySeat: bTypology })}
                   className="flex-1 bg-white border border-wedding-border rounded px-2 py-1 text-xs text-wedding-dark focus:outline-none focus:border-brand-pink uppercase"
                   placeholder="例: INTJ"
                 />
                 <select
-                  value={bride.typologySeat || ""}
-                  onChange={(e) => setBride({ ...bride, typologySeat: e.target.value.toUpperCase() })}
+                  value={bTypology}
+                  onChange={(e) => {
+                    const val = e.target.value.toUpperCase();
+                    setBTypology(val);
+                    syncBride({ typologySeat: val });
+                  }}
                   className="bg-white border border-wedding-border rounded text-[10px] text-gray-600 focus:outline-none focus:border-brand-pink px-1"
                 >
                   <option value="">（設定なし）</option>
@@ -497,7 +646,7 @@ export const GroomBrideSetup: React.FC<SetupProps> = ({
               <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={() => setBride({ ...bride, avatarType: "emoji" })}
+                  onClick={() => syncBride({ avatarType: "emoji" })}
                   className={`flex-1 py-1 text-[9px] font-mono rounded border text-center transition-all ${
                     bride.avatarType === "emoji"
                       ? "bg-brand-pink/15 border-brand-pink text-brand-pink font-bold"
@@ -508,7 +657,7 @@ export const GroomBrideSetup: React.FC<SetupProps> = ({
                 </button>
                 <button
                   type="button"
-                  onClick={() => setBride({ ...bride, avatarType: "url" })}
+                  onClick={() => syncBride({ avatarType: "url" })}
                   className={`flex-1 py-1 text-[9px] font-mono rounded border text-center transition-all ${
                     bride.avatarType === "url"
                       ? "bg-brand-pink/15 border-brand-pink text-brand-pink font-bold"
@@ -523,9 +672,15 @@ export const GroomBrideSetup: React.FC<SetupProps> = ({
                 <div className="mt-2 space-y-1.5">
                   <input
                     type="text"
-                    value={bride.avatar.substring(0, 2)}
+                    id="bride-avatar-input"
+                    value={bAvatar.substring(0, 2)}
                     maxLength={2}
-                    onChange={(e) => setBride({ ...bride, avatar: e.target.value })}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setBAvatar(val);
+                      syncBride({ avatar: val });
+                    }}
+                    onBlur={() => syncBride({ avatar: bAvatar })}
                     className="w-full bg-white border border-wedding-border rounded py-1 text-center text-lg focus:outline-none focus:border-brand-pink"
                     placeholder="👰"
                   />
@@ -534,7 +689,10 @@ export const GroomBrideSetup: React.FC<SetupProps> = ({
                       <button
                         key={`b-${e}`}
                         type="button"
-                        onClick={() => setBride({ ...bride, avatar: e })}
+                        onClick={() => {
+                          setBAvatar(e);
+                          syncBride({ avatar: e });
+                        }}
                         className="hover:scale-125 transition-transform text-sm"
                       >
                         {e}
@@ -559,19 +717,27 @@ export const GroomBrideSetup: React.FC<SetupProps> = ({
                       id="bride-file-upload"
                       accept="image/*"
                       className="hidden"
-                      onChange={(e) => handleImageFile(e, (av) => setBride({ ...bride, avatar: av, avatarType: "url" }))}
+                      onChange={(e) => handleImageFile(e, (av) => {
+                        setBAvatar(av);
+                        syncBride({ avatar: av, avatarType: "url" });
+                      })}
                     />
                   </div>
                   
                   <input
                     type="url"
                     id="bride-avatar-url-input"
-                    value={bride.avatar.startsWith("data:") ? "" : bride.avatar}
-                    onChange={(e) => setBride({ ...bride, avatar: e.target.value })}
+                    value={bAvatar.startsWith("data:") ? "" : bAvatar}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setBAvatar(val);
+                      syncBride({ avatar: val });
+                    }}
+                    onBlur={() => syncBride({ avatar: bAvatar })}
                     className="w-full bg-white border border-wedding-border rounded px-2 py-1 text-[9px] focus:outline-none focus:border-brand-pink"
                     placeholder="または画像URL (https://...)"
                   />
-                  {bride.avatar.startsWith("data:") && (
+                  {bAvatar.startsWith("data:") && (
                     <span className="text-[8px] text-brand-pink font-mono block text-center">
                       ✓ ローカル画像のアップロードに成功！
                     </span>
@@ -586,19 +752,25 @@ export const GroomBrideSetup: React.FC<SetupProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    const generated = generateVowByTypology(bride.typologySeat || "", "bride");
+                    const generated = generateVowByTypology(bTypology || "", "bride");
+                    setBVow(generated);
                     setBrideVow(generated);
                   }}
                   className="text-[8px] font-sans font-bold bg-brand-pink/10 text-brand-pink hover:bg-brand-pink/20 border border-brand-pink/20 rounded px-1.5 py-0.5 transition-all text-ellipsis overflow-hidden"
                   title="現在の性格タイプから誓いのセリフを自動生成しますw"
                 >
-                  ⚡ 性格({bride.typologySeat || "初期"})の誓いを自動生成
+                  ⚡ 性格({bTypology || "初期"})の誓いを自動生成
                 </button>
               </div>
               <textarea
                 id="bride-vow-input"
-                value={brideVow}
-                onChange={(e) => setBrideVow(e.target.value)}
+                value={bVow}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setBVow(val);
+                  setBrideVow(val);
+                }}
+                onBlur={() => setBrideVow(bVow)}
                 rows={3}
                 className="w-full bg-white border border-wedding-border rounded-md px-2.5 py-1.5 text-xs text-wedding-dark focus:outline-none focus:border-brand-pink resize-none"
                 placeholder="永遠の愛を誓うセリフを入力してください。..."
@@ -622,8 +794,13 @@ export const GroomBrideSetup: React.FC<SetupProps> = ({
               <input
                 type="text"
                 id="officiant-name-input"
-                value={officiant.name}
-                onChange={(e) => setOfficiant({ ...officiant, name: e.target.value })}
+                value={oName}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setOName(val);
+                  syncOfficiant({ name: val });
+                }}
+                onBlur={() => syncOfficiant({ name: oName })}
                 className="w-full bg-white border border-wedding-border rounded-md px-2.5 py-1 text-xs text-wedding-dark focus:outline-none focus:border-brand-gold"
                 placeholder="牧師 / 式の司会者"
               />
@@ -635,7 +812,7 @@ export const GroomBrideSetup: React.FC<SetupProps> = ({
               <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={() => setOfficiant({ ...officiant, avatarType: "emoji" })}
+                  onClick={() => syncOfficiant({ avatarType: "emoji" })}
                   className={`flex-1 py-1 text-[9px] font-mono rounded border text-center transition-all ${
                     officiant.avatarType === "emoji"
                       ? "bg-brand-gold/15 border-brand-gold text-brand-gold font-bold"
@@ -646,7 +823,7 @@ export const GroomBrideSetup: React.FC<SetupProps> = ({
                 </button>
                 <button
                   type="button"
-                  onClick={() => setOfficiant({ ...officiant, avatarType: "url" })}
+                  onClick={() => syncOfficiant({ avatarType: "url" })}
                   className={`flex-1 py-1 text-[9px] font-mono rounded border text-center transition-all ${
                     officiant.avatarType === "url"
                       ? "bg-brand-gold/15 border-brand-gold text-brand-gold font-bold"
@@ -661,9 +838,15 @@ export const GroomBrideSetup: React.FC<SetupProps> = ({
                 <div className="mt-2 space-y-1.5">
                   <input
                     type="text"
-                    value={officiant.avatar.substring(0, 2)}
+                    id="officiant-avatar-input"
+                    value={oAvatar.substring(0, 2)}
                     maxLength={2}
-                    onChange={(e) => setOfficiant({ ...officiant, avatar: e.target.value })}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setOAvatar(val);
+                      syncOfficiant({ avatar: val });
+                    }}
+                    onBlur={() => syncOfficiant({ avatar: oAvatar })}
                     className="w-full bg-white border border-wedding-border rounded py-1 text-center text-lg focus:outline-none focus:border-brand-gold"
                     placeholder="🌟"
                   />
@@ -672,7 +855,10 @@ export const GroomBrideSetup: React.FC<SetupProps> = ({
                       <button
                         key={`o-${e}`}
                         type="button"
-                        onClick={() => setOfficiant({ ...officiant, avatar: e })}
+                        onClick={() => {
+                          setOAvatar(e);
+                          syncOfficiant({ avatar: e });
+                        }}
                         className="hover:scale-125 transition-transform text-sm"
                       >
                         {e}
@@ -697,19 +883,27 @@ export const GroomBrideSetup: React.FC<SetupProps> = ({
                       id="officiant-file-upload"
                       accept="image/*"
                       className="hidden"
-                      onChange={(e) => handleImageFile(e, (av) => setOfficiant({ ...officiant, avatar: av, avatarType: "url" }))}
+                      onChange={(e) => handleImageFile(e, (av) => {
+                        setOAvatar(av);
+                        syncOfficiant({ avatar: av, avatarType: "url" });
+                      })}
                     />
                   </div>
                   
                   <input
                     type="url"
                     id="officiant-avatar-url-input"
-                    value={officiant.avatar.startsWith("data:") ? "" : officiant.avatar}
-                    onChange={(e) => setOfficiant({ ...officiant, avatar: e.target.value })}
+                    value={oAvatar.startsWith("data:") ? "" : oAvatar}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setOAvatar(val);
+                      syncOfficiant({ avatar: val });
+                    }}
+                    onBlur={() => syncOfficiant({ avatar: oAvatar })}
                     className="w-full bg-white border border-wedding-border rounded px-2 py-1 text-[9px] focus:outline-none focus:border-brand-gold"
                     placeholder="または画像URL (https://...)"
                   />
-                  {officiant.avatar.startsWith("data:") && (
+                  {oAvatar.startsWith("data:") && (
                     <span className="text-[8px] text-brand-gold font-mono block text-center">
                       ✓ ローカル画像のアップロードに成功！
                     </span>
