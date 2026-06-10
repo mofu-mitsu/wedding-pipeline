@@ -952,19 +952,47 @@ export default function App() {
   }, [activeRoomId]);
 
   // ★ ホスト（主催者：currentUserProfileが未定義）としての変更を自動でクラウドへデプロイ(保存)
+  // 🌟 rooms 内の activeRoomId 該当ルームデータを常に現在の真のローカルステートでマージ最新化・自動保存！
   useEffect(() => {
     if (!activeRoomId) return;
     if (currentUserProfile) return; // 参列ゲストはホストの設定を勝手に壊さないようガード！
     if (isSwitchingRoomRef.current) return; // 🌟 部屋切り替え過渡期は保存を完全スキップ！
 
-    const activeRoom = rooms.find((r) => r.id === activeRoomId);
-    if (!activeRoom) return;
+    // 現在の最新ローカル情報を完全にマージした真の部屋オブジェクトをビルド
+    const targetRoom = rooms.find((r) => r.id === activeRoomId);
+    const activeRoomPayload: WeddingRoom = {
+      id: activeRoomId,
+      name: targetRoom?.name || `${groom.name || "新郎"}＆${bride.name || "新婦"}の式の部屋`,
+      hostName: targetRoom?.hostName || officiant.name || "お祝いプランナー",
+      groom,
+      bride,
+      officiant,
+      groomVow,
+      brideVow,
+      guests,
+      phase,
+      systemGage,
+      logs: logs || [],
+      chats: chats || [],
+    };
+
+    // ローカルステートとしての rooms 自身もこのタイミングで完全に同期更新しておく（整合性の完全ロック）
+    setRooms((prev) => {
+      const existing = prev.find((r) => r.id === activeRoomId);
+      if (existing && JSON.stringify(existing) === JSON.stringify(activeRoomPayload)) {
+        return prev;
+      }
+      const filtered = prev.filter((r) => r.id !== activeRoomId);
+      const updated = [...filtered, activeRoomPayload];
+      localStorage.setItem("concept_wedding_rooms_v4", JSON.stringify(updated));
+      return updated;
+    });
 
     const timer = setTimeout(() => {
-      saveRoomToGas(activeRoom);
+      saveRoomToGas(activeRoomPayload);
     }, 1500); // 1.5秒デバウンスでGAS側の負荷を下げながら堅固に保存
     return () => clearTimeout(timer);
-  }, [groom, bride, officiant, groomVow, brideVow, guests, phase, systemGage, logs, chats, activeRoomId]);
+  }, [groom, bride, officiant, groomVow, brideVow, guests, phase, systemGage, logs, chats, activeRoomId, currentUserProfile]);
 
   // ★ バックグラウンドでの4秒おきGASポーリング（全同期コア）
   useEffect(() => {
@@ -972,6 +1000,16 @@ export default function App() {
     const cleanCode = activeRoomId.toLowerCase();
 
     const interval = setInterval(async () => {
+      // 🌟 [入力防衛シールド] 現在フォーカス中の入力欄 (名前, 誓い, メッセージ等) がある場合、
+      // スマホ等でのキーボード入力が突然上書き消失するのを 4.5倍 物理プロテクトします。
+      const activeEl = document.activeElement;
+      const isInputFocused = activeEl && (
+        activeEl.tagName === "INPUT" || 
+        activeEl.tagName === "TEXTAREA" || 
+        activeEl.tagName === "SELECT"
+      );
+      const isEditingSetup = activeTab === "setup"; // 主催者設定画面を表示中
+
       const remoteRoom = await fetchRoomFromGas(cleanCode);
       if (remoteRoom) {
         if (currentUserProfile) {
@@ -981,14 +1019,20 @@ export default function App() {
             return [...filtered, remoteRoom];
           });
 
-          // 新郎新婦、司会者、誓い、進行フェーズ、客席、チャットなど、すべてのクラウド情報を「現地神同期」！
-          setGroom((existing) => JSON.stringify(existing) !== JSON.stringify(remoteRoom.groom) ? remoteRoom.groom : existing);
-          setBride((existing) => JSON.stringify(existing) !== JSON.stringify(remoteRoom.bride) ? remoteRoom.bride : existing);
-          setOfficiant((existing) => JSON.stringify(existing) !== JSON.stringify(remoteRoom.officiant) ? remoteRoom.officiant : existing);
-          setGroomVow((existing) => existing !== remoteRoom.groomVow ? remoteRoom.groomVow : existing);
-          setBrideVow((existing) => existing !== remoteRoom.brideVow ? remoteRoom.brideVow : existing);
+          // 【ゲスト同期ガード】自分が入力操作中、あるいは何かしらの input に触れている間は、新郎新婦アバターやテキストの上書き更新をスキップ。
+          // 触れていなければ最新の新郎新婦、司会者、誓いの言葉を神速で同期！
+          if (!isInputFocused) {
+            setGroom((existing) => JSON.stringify(existing) !== JSON.stringify(remoteRoom.groom) ? remoteRoom.groom : existing);
+            setBride((existing) => JSON.stringify(existing) !== JSON.stringify(remoteRoom.bride) ? remoteRoom.bride : existing);
+            setOfficiant((existing) => JSON.stringify(existing) !== JSON.stringify(remoteRoom.officiant) ? remoteRoom.officiant : existing);
+            setGroomVow((existing) => existing !== remoteRoom.groomVow ? remoteRoom.groomVow : existing);
+            setBrideVow((existing) => existing !== remoteRoom.brideVow ? remoteRoom.brideVow : existing);
+          }
+
+          // 進行フェーズ（挙式状態）やゲージ、chats、logs は入力中であっても 100% 同期！（画面がコンパイル中から挙式へと自動で変化するように！）
           setPhase((existing) => existing !== remoteRoom.phase ? remoteRoom.phase : existing);
           setSystemGage((existing) => JSON.stringify(existing) !== JSON.stringify(remoteRoom.systemGage) ? remoteRoom.systemGage : existing);
+          
           setGuests((existing) => {
             const remoteGuests = remoteRoom.guests || [];
             // 自分自身の出席情報や作成されたローカルゲストレコードを最新マージ
@@ -1008,61 +1052,114 @@ export default function App() {
           setChats((existing) => JSON.stringify(existing) !== JSON.stringify(remoteRoom.chats) ? remoteRoom.chats || [] : existing);
         } else {
           // == ホスト（主役）端の動作 ==
-          // ゲスト(スマホ等)から追加された参列ゲスト、ヤヤジチャット、入退場ログだけを高精度マージする！
-          setChats((prevChats) => {
-            const prevStr = JSON.stringify(prevChats);
-            const remoteStr = JSON.stringify(remoteRoom.chats || []);
-            if (prevStr !== remoteStr) {
-              return remoteRoom.chats || [];
-            }
-            return prevChats;
-          });
-
-          setGuests((prevGuests) => {
-            const remoteGuests = remoteRoom.guests || [];
-            let isChanged = false;
-            
-            const updated = prevGuests.map(pg => {
-              if (pg.isBug || pg.name.startsWith("🌸") || pg.name.startsWith("⚡") || pg.name.startsWith("🌙") || pg.name.startsWith("👑") || pg.name.startsWith("🛡️")) {
-                return pg;
+          // 主催者が絶賛設定編集中のときは、予期せぬポーリング干渉（文字が戻る・消える）を完全鉄壁防衛
+          if (isEditingSetup || isInputFocused) {
+            // 入力中・設定中の場合、他のゲストから届いたチャット・電撃参列ログ・お祝いゲスト情報のみをバックグラウンドで無害に高精度マージ
+            setChats((prevChats) => {
+              const prevStr = JSON.stringify(prevChats);
+              const remoteStr = JSON.stringify(remoteRoom.chats || []);
+              if (prevStr !== remoteStr) {
+                return remoteRoom.chats || [];
               }
-              const rg = remoteGuests.find(g => g.id === pg.id);
-              if (rg && (rg.status !== pg.status || rg.isSquished !== pg.isSquished)) {
-                isChanged = true;
-                return { ...pg, status: rg.status, isSquished: rg.isSquished };
-              }
-              return pg;
+              return prevChats;
             });
 
-            const newGuests = remoteGuests.filter(rg => 
-              !prevGuests.some(pg => pg.id === rg.id) &&
-              !rg.isBug &&
-              !rg.name.startsWith("🌸") &&
-              !rg.name.startsWith("⚡") &&
-              !rg.name.startsWith("🌙") &&
-              !rg.name.startsWith("👑") &&
-              !rg.name.startsWith("🛡️")
-            );
-            if (newGuests.length > 0 || isChanged) {
-              return [...updated, ...newGuests];
-            }
-            return prevGuests;
-          });
+            setGuests((prevGuests) => {
+              const remoteGuests = remoteRoom.guests || [];
+              let isChanged = false;
+              
+              const updated = prevGuests.map(pg => {
+                if (pg.isBug || pg.name.startsWith("🌸") || pg.name.startsWith("⚡") || pg.name.startsWith("🌙") || pg.name.startsWith("👑") || pg.name.startsWith("🛡️")) {
+                  return pg;
+                }
+                const rg = remoteGuests.find(g => g.id === pg.id);
+                if (rg && (rg.status !== pg.status || rg.isSquished !== pg.isSquished)) {
+                  isChanged = true;
+                  return { ...pg, status: rg.status, isSquished: rg.isSquished };
+                }
+                return pg;
+              });
 
-          setLogs((prevLogs) => {
-            const prevStr = JSON.stringify(prevLogs);
-            const remoteStr = JSON.stringify(remoteRoom.logs || []);
-            if (prevStr !== remoteStr) {
-              return remoteRoom.logs || [];
-            }
-            return prevLogs;
-          });
+              const newGuests = remoteGuests.filter(rg => 
+                !prevGuests.some(pg => pg.id === rg.id) &&
+                !rg.isBug &&
+                !rg.name.startsWith("🌸") &&
+                !rg.name.startsWith("⚡") &&
+                !rg.name.startsWith("🌙") &&
+                !rg.name.startsWith("👑") &&
+                !rg.name.startsWith("🛡️")
+              );
+              if (newGuests.length > 0 || isChanged) {
+                return [...updated, ...newGuests];
+              }
+              return prevGuests;
+            });
+
+            setLogs((prevLogs) => {
+              const prevStr = JSON.stringify(prevLogs);
+              const remoteStr = JSON.stringify(remoteRoom.logs || []);
+              if (prevStr !== remoteStr) {
+                return remoteRoom.logs || [];
+              }
+              return prevLogs;
+            });
+          } else {
+            // 何も入力していないアイドル状態の時のみ、ゲストやチャットを高精度マージ
+            setChats((prevChats) => {
+              const prevStr = JSON.stringify(prevChats);
+              const remoteStr = JSON.stringify(remoteRoom.chats || []);
+              if (prevStr !== remoteStr) {
+                return remoteRoom.chats || [];
+              }
+              return prevChats;
+            });
+
+            setGuests((prevGuests) => {
+              const remoteGuests = remoteRoom.guests || [];
+              let isChanged = false;
+              
+              const updated = prevGuests.map(pg => {
+                if (pg.isBug || pg.name.startsWith("🌸") || pg.name.startsWith("⚡") || pg.name.startsWith("🌙") || pg.name.startsWith("👑") || pg.name.startsWith("🛡️")) {
+                  return pg;
+                }
+                const rg = remoteGuests.find(g => g.id === pg.id);
+                if (rg && (rg.status !== pg.status || rg.isSquished !== pg.isSquished)) {
+                  isChanged = true;
+                  return { ...pg, status: rg.status, isSquished: rg.isSquished };
+                }
+                return pg;
+              });
+
+              const newGuests = remoteGuests.filter(rg => 
+                !prevGuests.some(pg => pg.id === rg.id) &&
+                !rg.isBug &&
+                !rg.name.startsWith("🌸") &&
+                !rg.name.startsWith("⚡") &&
+                !rg.name.startsWith("🌙") &&
+                !rg.name.startsWith("👑") &&
+                !rg.name.startsWith("🛡️")
+              );
+              if (newGuests.length > 0 || isChanged) {
+                return [...updated, ...newGuests];
+              }
+              return prevGuests;
+            });
+
+            setLogs((prevLogs) => {
+              const prevStr = JSON.stringify(prevLogs);
+              const remoteStr = JSON.stringify(remoteRoom.logs || []);
+              if (prevStr !== remoteStr) {
+                return remoteRoom.logs || [];
+              }
+              return prevLogs;
+            });
+          }
         }
       }
     }, 4000); // 4秒おきの軽量更新ループ
 
     return () => clearInterval(interval);
-  }, [activeRoomId, currentUserProfile]);
+  }, [activeRoomId, currentUserProfile, activeTab]);
 
   // 6. VIP Summons Command Action
   const handleDeployVIPs = () => {
