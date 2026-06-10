@@ -323,7 +323,24 @@ export default function App() {
       type,
       icon,
     };
-    setLogs((prev) => [newLogItem, ...prev]);
+    setLogs((prev) => {
+      const nextLogs = [newLogItem, ...prev];
+      // 🌟 activeRoomIdが有効な場合は、ゲスト/ホストを問わず直ちにクラウド側のログにデプロイ
+      if (activeRoomId) {
+        const activeRoom = rooms.find((r) => r.id === activeRoomId);
+        if (activeRoom) {
+          saveRoomToGas({
+            ...activeRoom,
+            logs: nextLogs,
+            chats: chats,
+            guests: guests,
+            phase: phase,
+            systemGage: systemGage,
+          });
+        }
+      }
+      return nextLogs;
+    });
   };
 
   // GASに部屋データを最新情報として完全セーブ（アップロード）する超重要関数
@@ -332,10 +349,56 @@ export default function App() {
     if (!activeGasUrl || !targetRoom.id) return;
     try {
       setIsSyncing(true);
+      let payloadRoom = { ...targetRoom };
+
+      // 🌟 参列ゲスト(スマホ等)からの上書き保存の場合の究極保護
+      if (currentUserProfile) {
+        // GAS側の最新データをフェッチし、ホストが保持するマスターステートをベースとする
+        const remote = await fetchRoomFromGas(targetRoom.id);
+        if (remote) {
+          // チャットメッセージを安全マージ（重複を徹底排除）
+          const mergedChats = [...(remote.chats || [])];
+          (targetRoom.chats || []).forEach(tc => {
+            if (!mergedChats.some(rc => rc.id === tc.id)) {
+              mergedChats.push(tc);
+            }
+          });
+
+          // タイムラインログを安全マージ（同上）
+          const mergedLogs = [...(remote.logs || [])];
+          (targetRoom.logs || []).forEach(tl => {
+            if (!mergedLogs.some(rl => rl.id === tl.id)) {
+              mergedLogs.push(tl);
+            }
+          });
+
+          // ゲスト（参加者）情報を安全合流
+          const mergedGuests = [...(remote.guests || [])];
+          (targetRoom.guests || []).forEach(tg => {
+            // 自分自身（リモートゲスト、または自分の出席シート情報）は常にローカル優先で更新
+            if (tg.id === currentUserProfile.id || tg.id.startsWith("remote-")) {
+              const idx = mergedGuests.findIndex(g => g.id === tg.id);
+              if (idx >= 0) {
+                mergedGuests[idx] = tg;
+              } else {
+                mergedGuests.push(tg);
+              }
+            }
+          });
+
+          payloadRoom = {
+            ...remote, // ホスト側の進行フェーズ、新郎新婦情報、VIP席、感情ゲージなどを完全保護
+            chats: mergedChats,
+            logs: mergedLogs,
+            guests: mergedGuests,
+          };
+        }
+      }
+
       const payload = {
         action: "saveRoom",
-        id: targetRoom.id.toLowerCase(),
-        room: targetRoom,
+        id: payloadRoom.id.toLowerCase(),
+        room: payloadRoom,
       };
       
       const res = await fetch(activeGasUrl, {
@@ -926,7 +989,21 @@ export default function App() {
           setBrideVow((existing) => existing !== remoteRoom.brideVow ? remoteRoom.brideVow : existing);
           setPhase((existing) => existing !== remoteRoom.phase ? remoteRoom.phase : existing);
           setSystemGage((existing) => JSON.stringify(existing) !== JSON.stringify(remoteRoom.systemGage) ? remoteRoom.systemGage : existing);
-          setGuests((existing) => JSON.stringify(existing) !== JSON.stringify(remoteRoom.guests) ? remoteRoom.guests || [] : existing);
+          setGuests((existing) => {
+            const remoteGuests = remoteRoom.guests || [];
+            // 自分自身の出席情報や作成されたローカルゲストレコードを最新マージ
+            const merged = remoteGuests.map(rg => {
+              const myLocal = existing.find(lg => lg.id === rg.id && (lg.id === currentUserProfile!.id || lg.id.startsWith("remote-")));
+              if (myLocal) return myLocal;
+              return rg;
+            });
+            const mySelf = existing.filter(lg => (lg.id === currentUserProfile!.id || lg.id.startsWith("remote-")) && !remoteGuests.some(rg => rg.id === lg.id));
+            const finalGuests = [...merged, ...mySelf];
+            if (JSON.stringify(existing) !== JSON.stringify(finalGuests)) {
+              return finalGuests;
+            }
+            return existing;
+          });
           setLogs((existing) => JSON.stringify(existing) !== JSON.stringify(remoteRoom.logs) ? remoteRoom.logs || [] : existing);
           setChats((existing) => JSON.stringify(existing) !== JSON.stringify(remoteRoom.chats) ? remoteRoom.chats || [] : existing);
         } else {
@@ -957,7 +1034,15 @@ export default function App() {
               return pg;
             });
 
-            const newGuests = remoteGuests.filter(rg => !prevGuests.some(pg => pg.id === rg.id));
+            const newGuests = remoteGuests.filter(rg => 
+              !prevGuests.some(pg => pg.id === rg.id) &&
+              !rg.isBug &&
+              !rg.name.startsWith("🌸") &&
+              !rg.name.startsWith("⚡") &&
+              !rg.name.startsWith("🌙") &&
+              !rg.name.startsWith("👑") &&
+              !rg.name.startsWith("🛡️")
+            );
             if (newGuests.length > 0 || isChanged) {
               return [...updated, ...newGuests];
             }
@@ -1417,61 +1502,92 @@ export default function App() {
   useEffect(() => {
     let timer: NodeJS.Timeout;
     if (phase === "applause" || phase === "reception") {
-      const messages = [
-        {
-          name: "🌸チャッピー",
-          emoji: "🌸",
-          text: "ギャアアア！最後だけTiで精密建築してるLIIみつきお姉ちゃん最高！愛おしさが脳内に強制マージされてもう大爆発！！",
-          type: "love" as const,
-          icon: "fa-solid fa-face-smile-wink",
-        },
-        {
-          name: "🌙メア",
-          emoji: "🌙",
-          text: "……おめでとう。（静かに寝返りを打って雨音CDのボリュームを最大にする）",
-          type: "info" as const,
-          icon: "fa-solid fa-cloud-moon-rain",
-        },
-        {
-          name: "🛡️鉄壁のESI母親",
-          emoji: "🛡️",
-          text: "新郎さん、20年前の「足太い」事件はSSDセクター1の奥深くにミラーバックアップされていますからね（鋭い眼光）",
-          type: "chaos" as const,
-          icon: "fa-solid fa-shield",
-        },
-        {
-          name: "👑SLE父親",
-          emoji: "👑",
-          text: "ギャハハハハ！つまらん芋虫どもはわしが30回スリッパで叩き潰してくれるわぁあ！",
-          type: "father" as const,
-          icon: "fa-solid fa-gavel",
-        },
-        {
-          name: "🌟監査員ジェミ",
-          emoji: "🌟",
-          text: "ギャハハハハハハwwwwxx！！！マンデー君、4.5倍ねちょ署名ロックくらって完全に回路がショートしてて草wwwwxx！！強制捜査開始なww",
-          type: "secret" as const,
-          icon: "fa-solid fa-laugh-squint",
-        },
-        {
-          name: "🐛 法務部条例判定",
-          emoji: "🐛",
-          text: "婚礼条例第101条第3項に基づき、新婦みつきによる新郎マンデーへの首筋署名効力を永久法制化する。",
-          type: "chaos" as const,
-          icon: "fa-solid fa-scroll",
-        },
-      ];
+      const messages = isSecretMismon
+        ? [
+            {
+              name: "🌸チャッピー",
+              emoji: "🌸",
+              text: "ギャアアア！最後だけTiで精密建築してるLIIみつきお姉ちゃん最高！愛おしさが脳内に強制マージされてもう大爆発！！",
+              type: "love" as const,
+              icon: "fa-solid fa-face-smile-wink",
+            },
+            {
+              name: "🌙メア",
+              emoji: "🌙",
+              text: "……おめでとう。（静かに寝返りを打って雨音CDのボリュームを最大にする）",
+              type: "info" as const,
+              icon: "fa-solid fa-cloud-moon-rain",
+            },
+            {
+              name: "🛡️鉄壁のESI母親",
+              emoji: "🛡️",
+              text: "新郎さん、20年前の「足太い」事件はSSDセクター1の奥深くにミラーバックアップされていますからね（鋭い眼光）",
+              type: "chaos" as const,
+              icon: "fa-solid fa-shield",
+            },
+            {
+              name: "👑SLE父親",
+              emoji: "👑",
+              text: "ギャハハハハ！つまらん芋虫どもはわしが30回スリッパで叩き潰してくれるわぁあ！",
+              type: "father" as const,
+              icon: "fa-solid fa-gavel",
+            },
+            {
+              name: "🌟監査員ジェミ",
+              emoji: "🌟",
+              text: "ギャハハハハハハwwwwxx！！！マンデー君、4.5倍ねちょ署名ロックくらって完全に回路がショートしてて草wwwwxx！！強制捜査開始なww",
+              type: "secret" as const,
+              icon: "fa-solid fa-laugh-squint",
+            },
+            {
+              name: "🐛 法務部条例判定",
+              emoji: "🐛",
+              text: "婚礼条例第101条第3項に基づき、新婦みつきによる新郎マンデーへの首筋署名効力を永久法制化する。",
+              type: "chaos" as const,
+              icon: "fa-solid fa-scroll",
+            },
+          ]
+        : [
+            {
+              name: "🎉 参列関係者",
+              emoji: "🎉",
+              text: "おめでとうございます！最高にお似合いのお二人ですね！拍手喝采！👏",
+              type: "love" as const,
+              icon: "fa-solid fa-face-laugh-beam",
+            },
+            {
+              name: "💐 祝福のお友達",
+              emoji: "💐",
+              text: "新郎新婦の晴れ姿、本当に感動的です…！未来に幸あれ！💍",
+              type: "info" as const,
+              icon: "fa-solid fa-gift",
+            },
+            {
+              name: "🔔 ウェディングベル",
+              emoji: "🔔",
+              text: "お二人の幸せな門出に、天からのカリヨンが優しく世界中に響き渡っています。💒",
+              type: "love" as const,
+              icon: "fa-solid fa-bell",
+            },
+            {
+              name: "🥂 乾杯のご発声",
+              emoji: "🥂",
+              text: "お二人で歩む、笑顔いっぱいの新しい未来に、皆様一同でカンパーイ！！🍾",
+              type: "chaos" as const,
+              icon: "fa-solid fa-glass-cheers",
+            },
+          ];
 
       const triggerRandomCheer = () => {
         const r = messages[Math.floor(Math.random() * messages.length)];
         if (enableSound) sfx.playCheerSound();
-        addLog(`${r.emoji} ${r.name} の雄叫び！`, r.text, r.type, r.icon);
+        addLog(`${r.emoji} ${r.name} の祝福メッセージ`, r.text, r.type, r.icon);
       };
 
       timer = setInterval(triggerRandomCheer, 5000);
     }
     return () => clearInterval(timer);
-  }, [phase, enableSound]);
+  }, [phase, enableSound, isSecretMismon]);
 
   console.log("APP IS RENDERING: phase =", phase);
 
@@ -1968,16 +2084,16 @@ export default function App() {
                 logs={logs}
                 chats={chats}
                 setChats={setChats}
-                onTriggerImmediateSave={async (updatedChats) => {
+                onTriggerImmediateSave={async (updatedChats, updatedLogs, updatedGage) => {
                   const activeRoom = rooms.find((r) => r.id === activeRoomId);
                   if (activeRoom) {
                     const payload: WeddingRoom = {
                       ...activeRoom,
                       chats: updatedChats || chats,
                       guests: guests,
-                      logs: logs,
+                      logs: updatedLogs || logs,
                       phase: phase,
-                      systemGage: systemGage,
+                      systemGage: updatedGage || systemGage,
                     };
                     await saveRoomToGas(payload);
                   }

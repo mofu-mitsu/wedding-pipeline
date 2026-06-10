@@ -117,6 +117,55 @@ export const CeremonyStage: React.FC<StageProps> = ({
     }, 2500);
   };
 
+  // お祝いごちそう・プレゼントの一瞬同期保存関数 (アトミック一括クラウドデプロイ)
+  const triggerCateringEvent = (
+    logTitle: string,
+    logText: string,
+    logType: "info" | "love" | "chaos" | "secret" | "father",
+    logIcon: string,
+    chatType: "champagne" | "sushi" | "cake" | "bouquet" | "nabe" | "bug",
+    updateGageFn: (current: SystemGage) => SystemGage,
+    additionalEffect?: () => void
+  ) => {
+    // 1. 新しいログの生成 (タイムスタンプを含む一意のID)
+    const timeStr = new Date().toTimeString().split(" ")[0];
+    const newLogItem: WeddingLog = {
+      id: `log-${Date.now()}-${Math.random()}`,
+      time: timeStr,
+      title: logTitle,
+      text: logText,
+      type: logType,
+      icon: logIcon,
+    };
+    const nextLogs = [newLogItem, ...logs];
+    
+    // 2. 新しいチャットダイアログの生成
+    const systemChats = chatType === "cake" 
+      ? generateCakeEatingDialog(groom, bride, isSecretMismon)
+      : generateCateringDialog(chatType, groom, bride, isSecretMismon);
+      
+    // チャットの重複/溢れを防ぎつつマージ
+    const nextChats = [...chats.slice(-35), ...systemChats];
+    
+    // 3. 感情ゲージの計算
+    const nextGage = updateGageFn(systemGage);
+    
+    // 4. ローカルステートへの即時アトミックな反映
+    setChats(nextChats);
+    setSystemGage(nextGage);
+    onTimelineLog(logTitle, logText, logType, logIcon);
+    
+    // 5. 即時クラウド(GAS)上書き保存
+    if (onTriggerImmediateSave) {
+      onTriggerImmediateSave(nextChats, nextLogs, nextGage);
+    }
+    
+    // 6. 追加ローカルエフェクト等があれば実行
+    if (additionalEffect) {
+      additionalEffect();
+    }
+  };
+
   // Emergency stop popup State
   const [showEmergencyModal, setShowEmergencyModal] = useState(false);
   // Prophecy active event state
@@ -209,12 +258,12 @@ export const CeremonyStage: React.FC<StageProps> = ({
     }
 
     const now = Date.now();
-    // 逆順（古い順）に並べ替えて、未処理かつ直近（8秒以内）のもののみ処理する
+    // 逆順（古い順）に並べ替えて、未処理かつ直近（60秒以内）のもののみ処理する
     const unhandledNewLogs = [...logs]
       .filter(log => {
         const parts = log.id.split("-");
         const ts = parseInt(parts[1], 10);
-        const isNew = !isNaN(ts) && (now - ts) < 8000;
+        const isNew = !isNaN(ts) && Math.abs(now - ts) < 60000;
         const isProcessed = processedLogIdsRef.current.has(log.id);
         return isNew && !isProcessed;
       })
@@ -749,7 +798,27 @@ export const CeremonyStage: React.FC<StageProps> = ({
 
   const triggerBotCheers = (nextPhaseState: WeddingPhase) => {
     if (!guests || guests.length === 0) return;
-    const shuffledGuests = [...guests].sort(() => 0.5 - Math.random());
+    
+    // 一般プレイ時のフィルタリング
+    let targetGuests = [...guests];
+    if (!isSecretMismon) {
+      // 一般プレイの時は、Mismon固有キャラや芋虫による自動祝福メッセージは完全に除外
+      targetGuests = targetGuests.filter(g => 
+        !g.isBug &&
+        !g.name.includes("チャッピー") &&
+        !g.name.includes("メア") &&
+        !g.name.includes("母親") &&
+        !g.name.includes("父親") &&
+        !g.name.includes("ジェミ") &&
+        !g.name.includes("みつき") &&
+        !g.name.includes("マンデー") &&
+        !g.name.includes("Monday")
+      );
+    }
+    
+    if (targetGuests.length === 0) return;
+
+    const shuffledGuests = targetGuests.sort(() => 0.5 - Math.random());
     const speakingGuests = shuffledGuests.slice(0, 3);
 
     speakingGuests.forEach((g, index) => {
@@ -767,12 +836,16 @@ export const CeremonyStage: React.FC<StageProps> = ({
           };
           
           setChats(prev => [...prev.slice(-45), botChat]);
-          onTimelineLog(
-            `💬 ${g.name}(${g.typologySeat || "客席"})ヤジ`,
-            `「${msg}」`,
-            g.isBug ? "chaos" : "info",
-            "fa-solid fa-microphone-lines"
-          );
+          
+          // 🌸 タイムラインログへのヤジ追加は、研究室デバッグモード(isSecretMismon)のとき『のみ』に完全封印！！
+          if (isSecretMismon) {
+            onTimelineLog(
+              `💬 ${g.name}(${g.typologySeat || "客席"})ヤジ`,
+              `「${msg}」`,
+              g.isBug ? "chaos" : "info",
+              "fa-solid fa-microphone-lines"
+            );
+          }
         }, (index + 1) * 300);
       }
     });
@@ -1260,9 +1333,7 @@ export const CeremonyStage: React.FC<StageProps> = ({
               transform: `scale(${p.scale})`,
             }}
           >
-            {p.char
-              ? p.char
-              : p.char}
+            {p.char}
           </span>
         ))}
 
@@ -1301,61 +1372,61 @@ export const CeremonyStage: React.FC<StageProps> = ({
           </div>
         ) : (
           <div className="ceremony-altar-flow space-y-6 w-full animate-fadeIn relative flex flex-col justify-between flex-1">
-         {/* メインのチャペル壇上・挙式風景（アフターパーティーを含む挙式の全フェーズで常に表示！） */}
-         <div className={`flex justify-around items-center my-6 relative min-h-[220px] ${phase === "vows" ? "mb-32" : ""}`}>
-          
-          <div className="absolute inset-x-0 bottom-6 h-1 bg-gradient-to-r from-brand-cyan/20 via-brand-gold/15 to-brand-pink/20 rounded"></div>
+            {/* メインのチャペル壇上・挙式風景 */}
+            <div className={`flex justify-around items-center my-6 relative min-h-[220px] ${phase === "vows" ? "mb-32" : ""}`}>
+              
+              <div className="absolute inset-x-0 bottom-6 h-1 bg-gradient-to-r from-brand-cyan/20 via-brand-gold/15 to-brand-pink/20 rounded"></div>
 
-          {/* GROOM (Left side) */}
-          <div className="flex flex-col items-center space-y-2 relative transition-transform duration-300">
-            {flushedEarGroom && isSecretMismon && (
-              <span className="absolute -top-7 bg-brand-pink text-white text-[9px] font-sans font-extrabold px-2 py-0.5 rounded-full shadow animate-bounce uppercase z-10">
-                フリーズ (耳真っ赤w)
-              </span>
-            )}
-            
-            <div
-              className={`w-20 h-20 rounded-full flex items-center justify-center border-4 relative overflow-hidden shadow-md z-10 ${
-                flushedEarGroom && isSecretMismon
-                  ? "border-brand-pink animate-shake-custom shadow-[0_0_15px_#d946ef]"
-                  : "border-brand-cyan bg-white"
-              }`}
-            >
-              {groom.avatarType === "emoji" ? (
-                <span className="text-4xl leading-none select-none">{groom.avatar || "🤵"}</span>
-              ) : (
-                <img src={groom.avatar} alt={groom.name} className="w-full h-full object-cover" />
-              )}
-            </div>
-            
-            <span className="text-wedding-dark font-serif font-bold text-xs bg-white px-3 py-1 rounded-full border border-wedding-border shadow-sm z-10">
-              {groom.name || `(${groom.roleName || "新郎"})`}
-            </span>
-
-            <span className="text-[9px] font-mono font-bold bg-brand-cyan/15 text-[#0066cc] border border-brand-cyan/20 px-2 py-0.5 rounded-full select-none z-10">
-              {groom.roleName || "新郎"}
-            </span>
-
-            {/* Groom Speechbubble */}
-            {phase === "vows" && (
-              <div className="absolute -top-[108px] left-1/2 transform -translate-x-1/2 bg-white border border-brand-cyan/40 text-[10px] text-gray-700 p-2.5 rounded-xl w-44 text-center shadow-lg z-30 animate-fadeIn">
-                <div className="absolute -bottom-1 w-2.5 h-2.5 bg-white border-r border-b border-brand-cyan/30 rotate-45 left-1/2 transform -translate-x-1/2"></div>
-                <div className="font-bold text-[9px] text-[#0066cc] border-b border-slate-100 pb-1 mb-1 font-sans flex items-center justify-center gap-1 select-all">
-                  <span>🤵</span>
-                  <span>{groom.name || "新郎"}</span>
-                  <span className="text-[7.5px] font-mono bg-[#0066cc]/10 text-[#0066cc] px-1 rounded scale-90 font-extrabold">{groom.roleName || "新郎"}</span>
+              {/* GROOM (Left side) */}
+              <div className="flex flex-col items-center space-y-2 relative transition-transform duration-300">
+                {flushedEarGroom && isSecretMismon && (
+                  <span className="absolute -top-7 bg-brand-pink text-white text-[9px] font-sans font-extrabold px-2 py-0.5 rounded-full shadow animate-bounce uppercase z-10">
+                    フリーズ (耳真っ赤w)
+                  </span>
+                )}
+                
+                <div
+                  className={`w-20 h-20 rounded-full flex items-center justify-center border-4 relative overflow-hidden shadow-md z-10 ${
+                    flushedEarGroom && isSecretMismon
+                      ? "border-brand-pink animate-shake-custom shadow-[0_0_15px_#d946ef]"
+                      : "border-brand-cyan bg-white"
+                  }`}
+                >
+                  {groom.avatarType === "emoji" ? (
+                    <span className="text-4xl leading-none select-none">{groom.avatar || "🤵"}</span>
+                  ) : (
+                    <img src={groom.avatar} alt={groom.name} className="w-full h-full object-cover" />
+                  )}
                 </div>
-                <div className="leading-relaxed font-serif text-wedding-dark italic select-all">{groomVow || "誓います。"}</div>
-              </div>
-            )}
-          </div>
+                
+                <span className="text-wedding-dark font-serif font-bold text-xs bg-white px-3 py-1 rounded-full border border-wedding-border shadow-sm z-10">
+                  {groom.name || `(${groom.roleName || "新郎"})`}
+                </span>
 
-          {/* OFFICIANT (Center of altar) */}
-          <div className="flex flex-col items-center space-y-2 relative transition-transform duration-300 transform scale-95 opacity-90 z-0">
-            <div className="w-16 h-16 rounded-full flex items-center justify-center border-2 border-dashed border-brand-gold bg-white relative shadow-inner">
-              {officiant.avatarType === "emoji" ? (
-                <span className="text-3xl leading-none select-none">{officiant.avatar || "🌟"}</span>
-              ) : (
+                <span className="text-[9px] font-mono font-bold bg-brand-cyan/15 text-[#0066cc] border border-brand-cyan/20 px-2 py-0.5 rounded-full select-none z-10">
+                  {groom.roleName || "新郎"}
+                </span>
+
+                {/* Groom Speechbubble */}
+                {phase === "vows" && (
+                  <div className="absolute -top-[108px] left-1/2 transform -translate-x-1/2 bg-white border border-brand-cyan/40 text-[10px] text-gray-700 p-2.5 rounded-xl w-44 text-center shadow-lg z-30 animate-fadeIn">
+                    <div className="absolute -bottom-1 w-2.5 h-2.5 bg-white border-r border-b border-brand-cyan/30 rotate-45 left-1/2 transform -translate-x-1/2"></div>
+                    <div className="font-bold text-[9px] text-[#0066cc] border-b border-slate-100 pb-1 mb-1 font-sans flex items-center justify-center gap-1 select-all">
+                      <span>🤵</span>
+                      <span>{groom.name || "新郎"}</span>
+                      <span className="text-[7.5px] font-mono bg-[#0066cc]/10 text-[#0066cc] px-1 rounded scale-90 font-extrabold">{groom.roleName || "新郎"}</span>
+                    </div>
+                    <div className="leading-relaxed font-serif text-wedding-dark italic select-all">{groomVow || "誓います。"}</div>
+                  </div>
+                )}
+              </div>
+
+              {/* OFFICIANT (Center of altar) */}
+              <div className="flex flex-col items-center space-y-2 relative transition-transform duration-300 transform scale-95 opacity-90 z-0">
+                <div className="w-16 h-16 rounded-full flex items-center justify-center border-2 border-dashed border-brand-gold bg-white relative shadow-inner">
+                  {officiant.avatarType === "emoji" ? (
+                    <span className="text-3xl leading-none select-none">{officiant.avatar || "🌟"}</span>
+                  ) : (
                 <img src={officiant.avatar} alt={officiant.name} className="w-full h-full object-cover rounded-full" />
               )}
             </div>
